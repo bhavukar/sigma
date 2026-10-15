@@ -613,7 +613,7 @@ fn render_presentation_mode(
     let mut top_ui = ui.new_child(egui::UiBuilder::new().max_rect(bar_rect));
     top_ui.horizontal_centered(|ui| {
         ui.add_space(12.0);
-        ui.label(egui::RichText::new("▶ PROTOTYPE STAGE").size(12.0).strong().color(Color32::from_rgb(10, 132, 255)));
+        ui.label(egui::RichText::new("▶ Prototype Preview").size(12.0).strong().color(Color32::from_rgb(56, 189, 248)));
         ui.separator();
         ui.label(egui::RichText::new(&doc.name).size(12.0).color(Color32::from_rgb(200, 200, 210)));
 

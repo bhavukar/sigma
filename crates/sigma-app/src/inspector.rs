@@ -71,29 +71,37 @@ pub fn render_inspector(
     ScrollArea::vertical().show(ui, |ui| {
         ui.add_space(6.0);
 
-        // Segmented Tabs Header (Figma Pro)
+        // Clean Segmented Tabs (Design, Prototype, Export)
         ui.horizontal(|ui| {
-            ui.add_space(4.0);
-            let tabs = [("🎨 DESIGN", 0), ("⚡ PROTOTYPE", 1), ("📋 EXPORT", 2)];
+            ui.add_space(8.0);
+            let tabs = [("Design", 0), ("Prototype", 1), ("Export", 2)];
             for (title, tab_idx) in tabs {
                 let is_active = state.active_inspector_tab == tab_idx;
-                if ui.selectable_label(
-                    is_active,
+                let btn = egui::Button::new(
                     RichText::new(title)
-                        .size(11.0)
+                        .size(11.5)
                         .strong()
                         .color(if is_active {
-                            Color32::from_rgb(10, 132, 255)
+                            Color32::WHITE
                         } else {
-                            Color32::from_rgb(140, 140, 150)
+                            Color32::from_rgb(148, 163, 184)
                         }),
-                ).clicked() {
+                )
+                .fill(if is_active {
+                    Color32::from_rgb(39, 39, 44)
+                } else {
+                    Color32::TRANSPARENT
+                })
+                .stroke(egui::Stroke::NONE)
+                .corner_radius(egui::CornerRadius::same(5));
+
+                if ui.add(btn).clicked() {
                     state.active_inspector_tab = tab_idx;
                 }
             }
         });
 
-        ui.add_space(4.0);
+        ui.add_space(6.0);
         ui.separator();
 
         if state.active_inspector_tab == 1 {

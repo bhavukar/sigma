@@ -10,53 +10,60 @@ pub fn render_sidebar(
     network: &NetworkManager,
 ) {
     ui.vertical(|ui| {
-        // App header with Sigma logo
+        // Clean Minimal Tabs: Layers & Templates (No duplicate app header)
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             ui.add_space(8.0);
-            crate::logo::render_brand_lockup(ui, 22.0);
-        });
-
-        ui.add_space(8.0);
-        ui.separator();
-
-        // Segmented Tabs: Layers & UI Kits
-        ui.horizontal(|ui| {
-            ui.add_space(6.0);
             let layer_count = doc.nodes.len();
             let is_layers = state.active_sidebar_tab == 0;
-            let layer_lbl = format!("≡ LAYERS ({})", layer_count);
-            if ui.selectable_label(
-                is_layers,
-                RichText::new(layer_lbl)
-                    .size(11.0)
+            let is_assets = state.active_sidebar_tab == 1;
+
+            let layers_btn = egui::Button::new(
+                RichText::new(format!("Layers ({})", layer_count))
+                    .size(11.5)
                     .strong()
                     .color(if is_layers {
-                        Color32::from_rgb(10, 132, 255)
+                        Color32::WHITE
                     } else {
-                        Color32::from_rgb(140, 140, 150)
+                        Color32::from_rgb(148, 163, 184)
                     }),
-            ).clicked() {
+            )
+            .fill(if is_layers {
+                Color32::from_rgb(39, 39, 44)
+            } else {
+                Color32::TRANSPARENT
+            })
+            .stroke(egui::Stroke::NONE)
+            .corner_radius(egui::CornerRadius::same(5));
+
+            if ui.add(layers_btn).clicked() {
                 state.active_sidebar_tab = 0;
             }
 
-            let is_assets = state.active_sidebar_tab == 1;
-            if ui.selectable_label(
-                is_assets,
-                RichText::new("📦 UI KITS")
-                    .size(11.0)
+            let assets_btn = egui::Button::new(
+                RichText::new("Templates")
+                    .size(11.5)
                     .strong()
                     .color(if is_assets {
-                        Color32::from_rgb(10, 132, 255)
+                        Color32::WHITE
                     } else {
-                        Color32::from_rgb(140, 140, 150)
+                        Color32::from_rgb(148, 163, 184)
                     }),
-            ).clicked() {
+            )
+            .fill(if is_assets {
+                Color32::from_rgb(39, 39, 44)
+            } else {
+                Color32::TRANSPARENT
+            })
+            .stroke(egui::Stroke::NONE)
+            .corner_radius(egui::CornerRadius::same(5));
+
+            if ui.add(assets_btn).clicked() {
                 state.active_sidebar_tab = 1;
             }
         });
 
-        ui.add_space(4.0);
+        ui.add_space(6.0);
         ui.separator();
 
         if state.active_sidebar_tab == 1 {
@@ -442,7 +449,7 @@ fn render_ui_kits_tab(
             ),
             (
                 "🏷️ Status Badges & Chips",
-                "Status tags, pill badges (Active, In Progress, Enterprise, PRO).",
+                "Status tags, pill badges (Active, In Progress, Enterprise, Featured).",
                 5,
             ),
         ];

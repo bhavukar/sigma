@@ -113,7 +113,7 @@ pub fn render_shortcuts_modal(ctx: &egui::Context, state: &mut CanvasState) {
                         ],
                     ),
                     (
-                        "VIEW & PROTOTYPING",
+                        "VIEW & PRESENTATION",
                         vec![
                             ("Zoom In", "⌘ +"),
                             ("Zoom Out", "⌘ -"),

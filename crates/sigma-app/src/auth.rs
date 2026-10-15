@@ -120,7 +120,7 @@ fn render_auth_content(
                 network,
                 "Google Designer",
                 "google.designer@gmail.com",
-                "Pro Designer",
+                "Designer",
                 Color::FIGMA_BLUE,
             );
         }
@@ -132,7 +132,7 @@ fn render_auth_content(
                 network,
                 "GitHub Contributor",
                 "contributor@github.com",
-                "Pro Designer",
+                "Designer",
                 Color::rgb(46, 204, 113),
             );
         }
@@ -191,7 +191,7 @@ fn render_auth_content(
                     state.auth_email_input.trim().to_string()
                 };
                 let name = email.split('@').next().unwrap_or("Designer").to_string();
-                complete_auth(state, network, &name, &email, "Pro Designer", Color::FIGMA_BLUE);
+                complete_auth(state, network, &name, &email, "Designer", Color::FIGMA_BLUE);
             }
         }
         1 => {
@@ -216,7 +216,7 @@ fn render_auth_content(
             egui::ComboBox::from_id_salt("auth_role_combo")
                 .selected_text(&state.auth_role)
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut state.auth_role, "Pro Designer".to_string(), "Pro Designer");
+                    ui.selectable_value(&mut state.auth_role, "Designer".to_string(), "Designer");
                     ui.selectable_value(&mut state.auth_role, "Design Lead".to_string(), "Design Lead");
                     ui.selectable_value(&mut state.auth_role, "Frontend Dev".to_string(), "Frontend Dev");
                     ui.selectable_value(&mut state.auth_role, "Viewer".to_string(), "Viewer");
@@ -323,7 +323,7 @@ pub fn load_session_from_local_storage() -> Option<(String, String, String, Stri
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json) {
                     let name = val["name"].as_str().unwrap_or("Designer").to_string();
                     let email = val["email"].as_str().unwrap_or("").to_string();
-                    let role = val["role"].as_str().unwrap_or("Pro Designer").to_string();
+                    let role = val["role"].as_str().unwrap_or("Designer").to_string();
                     let token = val["token"].as_str().unwrap_or("").to_string();
                     return Some((name, email, role, token));
                 }

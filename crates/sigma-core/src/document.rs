@@ -1241,12 +1241,12 @@ impl Document {
         kit_children.push(bg2_t);
 
         let bg3_id = self.alloc_id();
-        let mut bg3 = Node::new_rectangle(bg3_id, "Badge Pro", Rect::new(218.0, 180.0, 80.0, 28.0), Color::rgb(168, 85, 247));
+        let mut bg3 = Node::new_rectangle(bg3_id, "Badge Tag", Rect::new(218.0, 180.0, 80.0, 28.0), Color::rgb(168, 85, 247));
         bg3.corner_radius = crate::style::CornerRadius::uniform(14.0);
         kit_children.push(bg3);
 
         let bg3_t_id = self.alloc_id();
-        let bg3_t = Node::new_text(bg3_t_id, "Pro", Vec2::new(246.0, 186.0), "PRO", 12.0, Color::WHITE);
+        let bg3_t = Node::new_text(bg3_t_id, "Tag", Vec2::new(246.0, 186.0), "Tag", 12.0, Color::WHITE);
         kit_children.push(bg3_t);
 
         // Modern Input Field
@@ -1568,7 +1568,7 @@ impl Document {
         children.push(nav);
 
         let logo_id = self.alloc_id();
-        let logo = Node::new_text(logo_id, "Logo", Vec2::new(48.0, 24.0), "✦ SIGMA PRO", 18.0, Color::WHITE);
+        let logo = Node::new_text(logo_id, "Logo", Vec2::new(48.0, 24.0), "Sigma", 18.0, Color::WHITE);
         children.push(logo);
 
         let link1_id = self.alloc_id();
@@ -2009,7 +2009,7 @@ impl Document {
             ("Pending", Color::rgb(245, 158, 11), 255.0, 75.0, 95.0),
             ("Error / Failed", Color::rgb(239, 68, 68), 32.0, 125.0, 120.0),
             ("Enterprise", Color::rgb(168, 85, 247), 165.0, 125.0, 105.0),
-            ("✦ PRO", Color::rgb(14, 165, 233), 285.0, 125.0, 85.0),
+            ("Completed", Color::rgb(14, 165, 233), 285.0, 125.0, 95.0),
         ];
 
         for (label, color, bx, by, bw) in badges {
