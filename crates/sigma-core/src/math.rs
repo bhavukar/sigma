@@ -104,6 +104,10 @@ impl Rect {
         height: 0.0,
     };
 
+    pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
+        Self { x, y, width, height }
+    }
+
     pub fn from_origin_size(origin: Vec2, size: Vec2) -> Self {
         Self {
             x: origin.x,

@@ -1,8 +1,8 @@
 use crate::canvas::CanvasState;
 use egui::{Color32, DragValue, RichText, ScrollArea, Slider, Stroke as EguiStroke, Ui, Vec2 as EguiVec2};
 use sigma_core::{
-    export_to_css, AlignmentMode, Color, Document, Effect, NodeKind, Stroke, StrokeAlign, TextAlign,
-    TextCase, TextDecoration,
+    export_node_to_svg, export_to_css, AlignmentMode, Color, Document, Effect, NodeKind, Stroke,
+    StrokeAlign, StrokeStyle, TextAlign, TextCase, TextDecoration,
 };
 
 pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState) {
@@ -54,23 +54,44 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
                 }
             });
 
-            ui.add_space(16.0);
+            ui.add_space(14.0);
+            ui.label(RichText::new("ARTBOARD PRESETS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
+            ui.separator();
+            let center = sigma_core::Vec2::new(-state.pan.x + 350.0, -state.pan.y + 350.0);
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("📱 iPhone 16 Pro").clicked() {
+                    let id = doc.add_frame_preset("iPhone 16 Pro", 393.0, 852.0, center);
+                    state.selected_ids = vec![id];
+                }
+                if ui.button("💻 Desktop HD").clicked() {
+                    let id = doc.add_frame_preset("Desktop HD", 1440.0, 1024.0, center);
+                    state.selected_ids = vec![id];
+                }
+                if ui.button("📸 Social Post").clicked() {
+                    let id = doc.add_frame_preset("Instagram Post", 1080.0, 1080.0, center);
+                    state.selected_ids = vec![id];
+                }
+            });
+
+            ui.add_space(14.0);
             ui.label(RichText::new("KEYBOARD SHORTCUTS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
             ui.separator();
             ui.label("• V = Select / Move Tool");
             ui.label("• F = Frame / Artboard Tool");
-            ui.label("• R = Rectangle Tool");
-            ui.label("• O = Ellipse / Circle Tool");
-            ui.label("• T = Typography Tool");
+            ui.label("• R = Rectangle | O = Ellipse");
+            ui.label("• L = Line | A = Arrow");
+            ui.label("• S = Star | P = Polygon");
+            ui.label("• T = Text Tool | H = Hand");
             ui.label("• Space + Drag = Pan Canvas");
-            ui.label("• Arrow keys = Nudge 1px (Shift: 10px)");
+            ui.label("• Arrow keys = Nudge (Shift: 10px)");
             ui.label("• Cmd/Ctrl + D = Duplicate");
+            ui.label("• Cmd/Ctrl + G = Group (Shift: Ungroup)");
+            ui.label("• [ or ] = Layer Backward / Forward");
             ui.label("• Cmd/Ctrl + Z = Undo / Redo");
-            ui.label("• 8 Handles = Resize & Scale");
             return;
         }
 
-        // 1. Alignment Toolbar
+        // 1. Alignment & Distribution Toolbar
         ui.horizontal(|ui| {
             if ui.button("⇥").on_hover_text("Align Left").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Left);
@@ -90,6 +111,44 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
             }
             if ui.button("⤓").on_hover_text("Align Bottom").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Bottom);
+            }
+            ui.separator();
+            if ui.button("⫼").on_hover_text("Distribute Horizontal Spacing").clicked() {
+                doc.distribute_selection(&state.selected_ids, true);
+            }
+            if ui.button("⫵").on_hover_text("Distribute Vertical Spacing").clicked() {
+                doc.distribute_selection(&state.selected_ids, false);
+            }
+        });
+
+        // Layer Arrange & Grouping Toolbar
+        ui.horizontal(|ui| {
+            if ui.small_button("▲").on_hover_text("Bring Forward (])").clicked() {
+                doc.bring_forward(&state.selected_ids);
+            }
+            if ui.small_button("▼").on_hover_text("Send Backward ([)").clicked() {
+                doc.send_backward(&state.selected_ids);
+            }
+            if ui.small_button("⤒").on_hover_text("Bring to Front (Shift+])").clicked() {
+                doc.bring_to_front(&state.selected_ids);
+            }
+            if ui.small_button("⤓").on_hover_text("Send to Back (Shift+[)").clicked() {
+                doc.send_to_back(&state.selected_ids);
+            }
+            ui.separator();
+            if state.selected_ids.len() > 1 {
+                if ui.small_button("⊞ Group").on_hover_text("Group Selection (Cmd+G)").clicked() {
+                    if let Some(gid) = doc.group_selection(&state.selected_ids) {
+                        state.selected_ids = vec![gid];
+                    }
+                }
+            } else if state.selected_ids.len() == 1 {
+                if ui.small_button("⊟ Ungroup").on_hover_text("Ungroup (Cmd+Shift+G)").clicked() {
+                    let unpacked = doc.ungroup_selection(&state.selected_ids);
+                    if !unpacked.is_empty() {
+                        state.selected_ids = unpacked;
+                    }
+                }
             }
         });
 
@@ -143,6 +202,16 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
                     if ui.add(DragValue::new(&mut r).speed(1.0).range(0.0..=500.0)).changed() {
                         node.corner_radius = sigma_core::CornerRadius::uniform(r);
                     }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Corners");
+                    ui.add(DragValue::new(&mut node.corner_radius.top_left).speed(1.0).range(0.0..=500.0).prefix("TL: "));
+                    ui.add(DragValue::new(&mut node.corner_radius.top_right).speed(1.0).range(0.0..=500.0).prefix("TR: "));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("       ");
+                    ui.add(DragValue::new(&mut node.corner_radius.bottom_left).speed(1.0).range(0.0..=500.0).prefix("BL: "));
+                    ui.add(DragValue::new(&mut node.corner_radius.bottom_right).speed(1.0).range(0.0..=500.0).prefix("BR: "));
                 });
             }
 
@@ -408,7 +477,35 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
                         );
                     }
                     ui.label(stroke.color.to_hex());
-                    ui.add(DragValue::new(&mut stroke.width).speed(0.5).range(0.5..=50.0));
+                    ui.add(DragValue::new(&mut stroke.width).speed(0.5).range(0.5..=50.0).prefix("W: "));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Style");
+                    let is_solid = stroke.style == StrokeStyle::Solid;
+                    if ui.selectable_label(is_solid, "— Solid").clicked() {
+                        stroke.style = StrokeStyle::Solid;
+                    }
+                    let is_dashed = stroke.style == StrokeStyle::Dashed;
+                    if ui.selectable_label(is_dashed, "┄ Dashed").clicked() {
+                        stroke.style = StrokeStyle::Dashed;
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Align");
+                    let is_in = stroke.align == StrokeAlign::Inside;
+                    if ui.selectable_label(is_in, "Inside").clicked() {
+                        stroke.align = StrokeAlign::Inside;
+                    }
+                    let is_ctr = stroke.align == StrokeAlign::Center;
+                    if ui.selectable_label(is_ctr, "Center").clicked() {
+                        stroke.align = StrokeAlign::Center;
+                    }
+                    let is_out = stroke.align == StrokeAlign::Outside;
+                    if ui.selectable_label(is_out, "Outside").clicked() {
+                        stroke.align = StrokeAlign::Outside;
+                    }
                 });
             } else {
                 if ui.button("+ Add Stroke").clicked() {
@@ -417,6 +514,7 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
                         width: 1.0,
                         align: StrokeAlign::Inside,
                         opacity: 1.0,
+                        style: StrokeStyle::Solid,
                     });
                 }
             }
@@ -478,9 +576,20 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
             let css_code = export_to_css(node);
             let mut css_display = css_code.clone();
             ui.text_edit_multiline(&mut css_display);
-            if ui.button("📋 Copy CSS").clicked() {
-                ui.ctx().copy_text(css_code);
-            }
+            ui.horizontal(|ui| {
+                if ui.button("📋 Copy CSS").clicked() {
+                    ui.ctx().copy_text(css_code);
+                }
+                if ui.button("⚡ Export SVG").clicked() {
+                    let svg_code = export_node_to_svg(node);
+                    ui.ctx().copy_text(svg_code);
+                }
+                if ui.button("📄 Copy JSON").clicked() {
+                    if let Ok(json) = serde_json::to_string_pretty(node) {
+                        ui.ctx().copy_text(json);
+                    }
+                }
+            });
         }
     });
 }

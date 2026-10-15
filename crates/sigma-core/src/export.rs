@@ -32,6 +32,20 @@ pub fn export_to_svg(doc: &Document) -> String {
     svg
 }
 
+pub fn export_node_to_svg(node: &Node) -> String {
+    let mut svg = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}" width="{}" height="{}">"#,
+        node.rect.width, node.rect.height, node.rect.width, node.rect.height
+    );
+    svg.push('\n');
+    let mut cloned = node.clone();
+    cloned.rect.x = 0.0;
+    cloned.rect.y = 0.0;
+    render_node_svg(&cloned, &mut svg);
+    svg.push_str("</svg>");
+    svg
+}
+
 fn render_node_svg(node: &Node, svg: &mut String) {
     if !node.visible {
         return;
@@ -92,7 +106,59 @@ fn render_node_svg(node: &Node, svg: &mut String) {
                 svg.push('\n');
             }
         }
-        NodeKind::Line => {}
+        NodeKind::Line => {
+            let x1 = node.rect.x;
+            let y1 = node.rect.y + node.rect.height * 0.5;
+            let x2 = node.rect.x + node.rect.width;
+            let y2 = node.rect.y + node.rect.height * 0.5;
+            svg.push_str(&format!(
+                r#"  <line x1="{}" y1="{}" x2="{}" y2="{}" {} />"#,
+                x1, y1, x2, y2, stroke_attr
+            ));
+            svg.push('\n');
+        }
+        NodeKind::Arrow => {
+            let x1 = node.rect.x;
+            let y1 = node.rect.y + node.rect.height * 0.5;
+            let x2 = node.rect.x + node.rect.width;
+            let y2 = node.rect.y + node.rect.height * 0.5;
+            svg.push_str(&format!(
+                r#"  <line x1="{}" y1="{}" x2="{}" y2="{}" {} />"#,
+                x1, y1, x2, y2, stroke_attr
+            ));
+            svg.push('\n');
+        }
+        NodeKind::Star => {
+            let cx = node.rect.x + node.rect.width * 0.5;
+            let cy = node.rect.y + node.rect.height * 0.5;
+            let r_outer = (node.rect.width * 0.5).min(node.rect.height * 0.5);
+            let r_inner = r_outer * 0.382;
+            let mut pts = String::new();
+            for i in 0..10 {
+                let angle = (i as f32) * std::f32::consts::PI / 5.0 - std::f32::consts::FRAC_PI_2;
+                let r = if i % 2 == 0 { r_outer } else { r_inner };
+                let px = cx + angle.cos() * r;
+                let py = cy + angle.sin() * r;
+                pts.push_str(&format!("{:.1},{:.1} ", px, py));
+            }
+            svg.push_str(&format!(
+                r#"  <polygon points="{}" {} {} />"#,
+                pts.trim_end(), fill_attr, stroke_attr
+            ));
+            svg.push('\n');
+        }
+        NodeKind::Polygon => {
+            let cx = node.rect.x + node.rect.width * 0.5;
+            let top_y = node.rect.y;
+            let bot_y = node.rect.y + node.rect.height;
+            let left_x = node.rect.x;
+            let right_x = node.rect.x + node.rect.width;
+            svg.push_str(&format!(
+                r#"  <polygon points="{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}" {} {} />"#,
+                cx, top_y, right_x, bot_y, left_x, bot_y, fill_attr, stroke_attr
+            ));
+            svg.push('\n');
+        }
     }
 }
 

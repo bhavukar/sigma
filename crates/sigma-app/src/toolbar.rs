@@ -17,8 +17,12 @@ pub fn render_toolbar(
         let tools = [
             (ActiveTool::Select, "↖ Move", "V"),
             (ActiveTool::Frame, "⊞ Frame", "F"),
-            (ActiveTool::Rectangle, "▭ Rectangle", "R"),
-            (ActiveTool::Ellipse, "○ Ellipse", "O"),
+            (ActiveTool::Rectangle, "▭", "R"),
+            (ActiveTool::Ellipse, "○", "O"),
+            (ActiveTool::Line, "—", "L"),
+            (ActiveTool::Arrow, "→", "A"),
+            (ActiveTool::Star, "★", "S"),
+            (ActiveTool::Polygon, "△", "P"),
             (ActiveTool::Text, "T Text", "T"),
             (ActiveTool::Hand, "✋ Hand", "H"),
         ];
@@ -32,9 +36,113 @@ pub fn render_toolbar(
             }
         }
 
-        ui.add_space(16.0);
+        ui.add_space(8.0);
         ui.separator();
-        ui.add_space(16.0);
+        ui.add_space(8.0);
+
+        // Frame Presets Quick Add
+        egui::ComboBox::from_id_salt("frame_presets_combo")
+            .selected_text("📐 Presets")
+            .show_ui(ui, |ui| {
+                ui.label(RichText::new("MOBILE").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                if ui.button("iPhone 16 Pro (393 × 852)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("iPhone 16 Pro", 393.0, 852.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("iPhone 16 Pro Max (440 × 956)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("iPhone 16 Pro Max", 440.0, 956.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("Android Large (360 × 800)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("Android Large", 360.0, 800.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+
+                ui.separator();
+                ui.label(RichText::new("DESKTOP & TABLET").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                if ui.button("MacBook Pro 16\" (1728 × 1117)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("MacBook Pro 16\"", 1728.0, 1117.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("Desktop HD (1440 × 1024)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("Desktop HD", 1440.0, 1024.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("iPad Pro 11\" (834 × 1194)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("iPad Pro 11\"", 834.0, 1194.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+
+                ui.separator();
+                ui.label(RichText::new("SOCIAL").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                if ui.button("Instagram Post (1080 × 1080)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("Instagram Post", 1080.0, 1080.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("Dribbble Shot (1600 × 1200)").clicked() {
+                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
+                    let id = doc.add_frame_preset("Dribbble Shot", 1600.0, 1200.0, center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+            });
+
+        // UI Components Quick Insert
+        egui::ComboBox::from_id_salt("components_library_combo")
+            .selected_text("📦 Components")
+            .show_ui(ui, |ui| {
+                let center = sigma_core::Vec2::new(-state.pan.x + 350.0, -state.pan.y + 300.0);
+                if ui.button("+ Primary Button").clicked() {
+                    let id = doc.insert_component("button", center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("+ Glassmorphic Card").clicked() {
+                    let id = doc.insert_component("card", center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("+ Text Input Field").clicked() {
+                    let id = doc.insert_component("input", center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+                if ui.button("+ User Avatar").clicked() {
+                    let id = doc.insert_component("avatar", center);
+                    state.selected_ids = vec![id];
+                    history.push_state(doc);
+                    network.send_doc_update(doc);
+                }
+            });
+
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(8.0);
 
         // Undo / Redo
         let can_undo = history.can_undo();

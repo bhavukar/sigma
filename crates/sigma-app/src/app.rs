@@ -160,10 +160,56 @@ impl SigmaApp {
                 self.canvas_state.active_tool = ActiveTool::Rectangle;
             } else if i.key_pressed(Key::O) {
                 self.canvas_state.active_tool = ActiveTool::Ellipse;
+            } else if i.key_pressed(Key::L) {
+                self.canvas_state.active_tool = ActiveTool::Line;
+            } else if i.key_pressed(Key::A) {
+                self.canvas_state.active_tool = ActiveTool::Arrow;
+            } else if i.key_pressed(Key::S) {
+                self.canvas_state.active_tool = ActiveTool::Star;
+            } else if i.key_pressed(Key::P) {
+                self.canvas_state.active_tool = ActiveTool::Polygon;
             } else if i.key_pressed(Key::T) {
                 self.canvas_state.active_tool = ActiveTool::Text;
             } else if i.key_pressed(Key::H) {
                 self.canvas_state.active_tool = ActiveTool::Hand;
+            }
+
+            // Grouping (Cmd/Ctrl + G, Cmd/Ctrl + Shift + G)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::G) {
+                self.history.push_state(&self.doc);
+                if i.modifiers.shift {
+                    let unpacked = self.doc.ungroup_selection(&self.canvas_state.selected_ids);
+                    if !unpacked.is_empty() {
+                        self.canvas_state.selected_ids = unpacked;
+                        self.network.send_selection(&self.canvas_state.selected_ids);
+                        self.network.send_doc_update(&self.doc);
+                    }
+                } else {
+                    if let Some(gid) = self.doc.group_selection(&self.canvas_state.selected_ids) {
+                        self.canvas_state.selected_ids = vec![gid];
+                        self.network.send_selection(&self.canvas_state.selected_ids);
+                        self.network.send_doc_update(&self.doc);
+                    }
+                }
+            }
+
+            // Layer Ordering shortcuts (] and [)
+            if i.key_pressed(Key::CloseBracket) {
+                self.history.push_state(&self.doc);
+                if i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl {
+                    self.doc.bring_to_front(&self.canvas_state.selected_ids);
+                } else {
+                    self.doc.bring_forward(&self.canvas_state.selected_ids);
+                }
+                self.network.send_doc_update(&self.doc);
+            } else if i.key_pressed(Key::OpenBracket) {
+                self.history.push_state(&self.doc);
+                if i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl {
+                    self.doc.send_to_back(&self.canvas_state.selected_ids);
+                } else {
+                    self.doc.send_backward(&self.canvas_state.selected_ids);
+                }
+                self.network.send_doc_update(&self.doc);
             }
 
             // Arrow keys Nudging (Figma 1px, Shift: 10px)
@@ -539,6 +585,126 @@ impl SigmaApp {
                                 &format!("Ellipse {}", id),
                                 rect,
                                 Color::rgba(255, 69, 58, 255),
+                            );
+                            self.doc.nodes.push(new_node);
+                            self.canvas_state.selected_ids = vec![id];
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                            self.network.send_doc_update(&self.doc);
+                        }
+                    }
+                    self.canvas_state.creation_start_pos = None;
+                    self.canvas_state.drag_start_pos = None;
+                    self.canvas_state.active_tool = ActiveTool::Select;
+                }
+            }
+            ActiveTool::Line => {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
+                if response.drag_started() {
+                    self.canvas_state.creation_start_pos = Some(world_mouse);
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.dragged() {
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.drag_stopped() {
+                    if let Some(start) = self.canvas_state.creation_start_pos {
+                        let rect = Rect::from_min_max(start, world_mouse);
+                        if rect.width.abs() > 2.0 || rect.height.abs() > 2.0 {
+                            self.history.push_state(&self.doc);
+                            let id = self.doc.alloc_id();
+                            let new_node = Node::new_line(
+                                id,
+                                &format!("Line {}", id),
+                                rect,
+                                Color::rgba(240, 240, 240, 255),
+                            );
+                            self.doc.nodes.push(new_node);
+                            self.canvas_state.selected_ids = vec![id];
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                            self.network.send_doc_update(&self.doc);
+                        }
+                    }
+                    self.canvas_state.creation_start_pos = None;
+                    self.canvas_state.drag_start_pos = None;
+                    self.canvas_state.active_tool = ActiveTool::Select;
+                }
+            }
+            ActiveTool::Arrow => {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
+                if response.drag_started() {
+                    self.canvas_state.creation_start_pos = Some(world_mouse);
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.dragged() {
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.drag_stopped() {
+                    if let Some(start) = self.canvas_state.creation_start_pos {
+                        let rect = Rect::from_min_max(start, world_mouse);
+                        if rect.width.abs() > 4.0 || rect.height.abs() > 4.0 {
+                            self.history.push_state(&self.doc);
+                            let id = self.doc.alloc_id();
+                            let new_node = Node::new_arrow(
+                                id,
+                                &format!("Arrow {}", id),
+                                rect,
+                                Color::rgba(10, 132, 255, 255),
+                            );
+                            self.doc.nodes.push(new_node);
+                            self.canvas_state.selected_ids = vec![id];
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                            self.network.send_doc_update(&self.doc);
+                        }
+                    }
+                    self.canvas_state.creation_start_pos = None;
+                    self.canvas_state.drag_start_pos = None;
+                    self.canvas_state.active_tool = ActiveTool::Select;
+                }
+            }
+            ActiveTool::Star => {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
+                if response.drag_started() {
+                    self.canvas_state.creation_start_pos = Some(world_mouse);
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.dragged() {
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.drag_stopped() {
+                    if let Some(start) = self.canvas_state.creation_start_pos {
+                        let rect = Rect::from_min_max(start, world_mouse);
+                        if rect.width > 5.0 && rect.height > 5.0 {
+                            self.history.push_state(&self.doc);
+                            let id = self.doc.alloc_id();
+                            let new_node = Node::new_star(
+                                id,
+                                &format!("Star {}", id),
+                                rect,
+                                Color::rgba(255, 180, 0, 255),
+                            );
+                            self.doc.nodes.push(new_node);
+                            self.canvas_state.selected_ids = vec![id];
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                            self.network.send_doc_update(&self.doc);
+                        }
+                    }
+                    self.canvas_state.creation_start_pos = None;
+                    self.canvas_state.drag_start_pos = None;
+                    self.canvas_state.active_tool = ActiveTool::Select;
+                }
+            }
+            ActiveTool::Polygon => {
+                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
+                if response.drag_started() {
+                    self.canvas_state.creation_start_pos = Some(world_mouse);
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.dragged() {
+                    self.canvas_state.drag_start_pos = Some(world_mouse);
+                } else if response.drag_stopped() {
+                    if let Some(start) = self.canvas_state.creation_start_pos {
+                        let rect = Rect::from_min_max(start, world_mouse);
+                        if rect.width > 5.0 && rect.height > 5.0 {
+                            self.history.push_state(&self.doc);
+                            let id = self.doc.alloc_id();
+                            let new_node = Node::new_polygon(
+                                id,
+                                &format!("Polygon {}", id),
+                                rect,
+                                Color::rgba(52, 199, 89, 255),
                             );
                             self.doc.nodes.push(new_node);
                             self.canvas_state.selected_ids = vec![id];

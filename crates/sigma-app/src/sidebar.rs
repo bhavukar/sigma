@@ -44,11 +44,26 @@ pub fn render_sidebar(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState) 
             ui.label(RichText::new("LAYERS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if !state.selected_ids.is_empty() {
-                    if ui.small_button("Delete").clicked() {
+                    if ui.small_button("🗑").on_hover_text("Delete selected (Del)").clicked() {
                         for id in state.selected_ids.clone() {
                             doc.remove_node(id);
                         }
                         state.selected_ids.clear();
+                    }
+                    if state.selected_ids.len() > 1 {
+                        if ui.small_button("⊞ Group").on_hover_text("Group selection (Cmd+G)").clicked() {
+                            if let Some(group_id) = doc.group_selection(&state.selected_ids) {
+                                state.selected_ids = vec![group_id];
+                            }
+                        }
+                    }
+                    if state.selected_ids.len() == 1 {
+                        if ui.small_button("⊟ Ungroup").on_hover_text("Ungroup (Cmd+Shift+G)").clicked() {
+                            let unpacked = doc.ungroup_selection(&state.selected_ids);
+                            if !unpacked.is_empty() {
+                                state.selected_ids = unpacked;
+                            }
+                        }
                     }
                 }
             });
@@ -71,6 +86,9 @@ pub fn render_sidebar(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState) 
                     NodeKind::Ellipse => "○",
                     NodeKind::Text => "T",
                     NodeKind::Line => "—",
+                    NodeKind::Arrow => "→",
+                    NodeKind::Star => "★",
+                    NodeKind::Polygon => "△",
                 };
 
                 ui.horizontal(|ui| {

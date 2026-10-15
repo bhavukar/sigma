@@ -13,6 +13,9 @@ pub enum NodeKind {
     Ellipse,
     Text,
     Line,
+    Arrow,
+    Star,
+    Polygon,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,9 +169,111 @@ impl Node {
                 width: 1.0,
                 align: crate::style::StrokeAlign::Inside,
                 opacity: 1.0,
+                style: crate::style::StrokeStyle::Solid,
             }],
             effects: vec![],
             corner_radius: CornerRadius::uniform(8.0),
+            auto_layout: AutoLayout::default(),
+            children: vec![],
+            text_props: None,
+        }
+    }
+
+    pub fn new_line(id: NodeId, name: &str, rect: Rect, stroke_color: Color) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            kind: NodeKind::Line,
+            rect,
+            rotation: 0.0,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            fills: vec![],
+            strokes: vec![Stroke {
+                color: stroke_color,
+                width: 2.0,
+                align: crate::style::StrokeAlign::Center,
+                opacity: 1.0,
+                style: crate::style::StrokeStyle::Solid,
+            }],
+            effects: vec![],
+            corner_radius: CornerRadius::ZERO,
+            auto_layout: AutoLayout::default(),
+            children: vec![],
+            text_props: None,
+        }
+    }
+
+    pub fn new_arrow(id: NodeId, name: &str, rect: Rect, stroke_color: Color) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            kind: NodeKind::Arrow,
+            rect,
+            rotation: 0.0,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            fills: vec![Fill::Solid {
+                color: stroke_color,
+                opacity: 1.0,
+            }],
+            strokes: vec![Stroke {
+                color: stroke_color,
+                width: 2.0,
+                align: crate::style::StrokeAlign::Center,
+                opacity: 1.0,
+                style: crate::style::StrokeStyle::Solid,
+            }],
+            effects: vec![],
+            corner_radius: CornerRadius::ZERO,
+            auto_layout: AutoLayout::default(),
+            children: vec![],
+            text_props: None,
+        }
+    }
+
+    pub fn new_star(id: NodeId, name: &str, rect: Rect, fill_color: Color) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            kind: NodeKind::Star,
+            rect,
+            rotation: 0.0,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            fills: vec![Fill::Solid {
+                color: fill_color,
+                opacity: 1.0,
+            }],
+            strokes: vec![],
+            effects: vec![],
+            corner_radius: CornerRadius::ZERO,
+            auto_layout: AutoLayout::default(),
+            children: vec![],
+            text_props: None,
+        }
+    }
+
+    pub fn new_polygon(id: NodeId, name: &str, rect: Rect, fill_color: Color) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            kind: NodeKind::Polygon,
+            rect,
+            rotation: 0.0,
+            visible: true,
+            locked: false,
+            opacity: 1.0,
+            fills: vec![Fill::Solid {
+                color: fill_color,
+                opacity: 1.0,
+            }],
+            strokes: vec![],
+            effects: vec![],
+            corner_radius: CornerRadius::ZERO,
             auto_layout: AutoLayout::default(),
             children: vec![],
             text_props: None,

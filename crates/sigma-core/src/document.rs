@@ -160,6 +160,301 @@ impl Document {
         }
     }
 
+    pub fn distribute_selection(&mut self, ids: &[NodeId], horizontal: bool) {
+        if ids.len() < 3 {
+            return;
+        }
+        let mut items: Vec<(usize, f32, f32)> = Vec::new();
+        for (idx, node) in self.nodes.iter().enumerate() {
+            if ids.contains(&node.id) {
+                let (pos, size) = if horizontal {
+                    (node.rect.x, node.rect.width)
+                } else {
+                    (node.rect.y, node.rect.height)
+                };
+                items.push((idx, pos, size));
+            }
+        }
+        if items.len() < 3 {
+            return;
+        }
+        items.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        let first_pos = items.first().unwrap().1;
+        let last_item = items.last().unwrap();
+        let total_span = (last_item.1 + last_item.2) - first_pos;
+        let total_items_size: f32 = items.iter().map(|(_, _, s)| *s).sum();
+        let remaining_space = (total_span - total_items_size).max(0.0);
+        let gap = remaining_space / (items.len() - 1) as f32;
+
+        let mut current_pos = first_pos;
+        for (idx, _, size) in items {
+            let node = &mut self.nodes[idx];
+            if horizontal {
+                node.rect.x = current_pos;
+            } else {
+                node.rect.y = current_pos;
+            }
+            current_pos += size + gap;
+        }
+    }
+
+    pub fn bring_to_front(&mut self, ids: &[NodeId]) {
+        let mut moved = Vec::new();
+        self.nodes.retain(|n| {
+            if ids.contains(&n.id) {
+                moved.push(n.clone());
+                false
+            } else {
+                true
+            }
+        });
+        self.nodes.extend(moved);
+    }
+
+    pub fn send_to_back(&mut self, ids: &[NodeId]) {
+        let mut moved = Vec::new();
+        self.nodes.retain(|n| {
+            if ids.contains(&n.id) {
+                moved.push(n.clone());
+                false
+            } else {
+                true
+            }
+        });
+        moved.extend(self.nodes.drain(..));
+        self.nodes = moved;
+    }
+
+    pub fn bring_forward(&mut self, ids: &[NodeId]) {
+        if self.nodes.len() < 2 {
+            return;
+        }
+        for i in (0..self.nodes.len() - 1).rev() {
+            if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i + 1].id) {
+                self.nodes.swap(i, i + 1);
+            }
+        }
+    }
+
+    pub fn send_backward(&mut self, ids: &[NodeId]) {
+        if self.nodes.len() < 2 {
+            return;
+        }
+        for i in 1..self.nodes.len() {
+            if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i - 1].id) {
+                self.nodes.swap(i, i - 1);
+            }
+        }
+    }
+
+    pub fn group_selection(&mut self, ids: &[NodeId]) -> Option<NodeId> {
+        if ids.is_empty() {
+            return None;
+        }
+        let bbox = self.selection_bounding_box(ids)?;
+        let mut children = Vec::new();
+
+        self.nodes.retain(|n| {
+            if ids.contains(&n.id) {
+                let mut child = n.clone();
+                child.rect.x -= bbox.x;
+                child.rect.y -= bbox.y;
+                children.push(child);
+                false
+            } else {
+                true
+            }
+        });
+
+        if children.is_empty() {
+            return None;
+        }
+
+        let group_id = self.alloc_id();
+        let mut group = Node::new_frame(group_id, &format!("Group {}", group_id), bbox);
+        group.fills.clear();
+        group.strokes.clear();
+        group.corner_radius = crate::style::CornerRadius::ZERO;
+        group.children = children;
+
+        self.nodes.push(group);
+        Some(group_id)
+    }
+
+    pub fn ungroup_selection(&mut self, ids: &[NodeId]) -> Vec<NodeId> {
+        let mut unpacked_ids = Vec::new();
+        let mut new_root_nodes = Vec::new();
+
+        self.nodes.retain(|n| {
+            if ids.contains(&n.id) && !n.children.is_empty() {
+                for mut child in n.children.clone() {
+                    child.rect.x += n.rect.x;
+                    child.rect.y += n.rect.y;
+                    unpacked_ids.push(child.id);
+                    new_root_nodes.push(child);
+                }
+                false
+            } else {
+                true
+            }
+        });
+
+        self.nodes.extend(new_root_nodes);
+        unpacked_ids
+    }
+
+    pub fn add_frame_preset(&mut self, name: &str, width: f32, height: f32, center: Vec2) -> NodeId {
+        let id = self.alloc_id();
+        let rect = Rect {
+            x: center.x - width * 0.5,
+            y: center.y - height * 0.5,
+            width,
+            height,
+        };
+        let mut frame = Node::new_frame(id, name, rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        self.nodes.push(frame);
+        id
+    }
+
+    pub fn insert_component(&mut self, component_type: &str, center: Vec2) -> NodeId {
+        match component_type {
+            "button" => {
+                let id = self.alloc_id();
+                let rect = Rect {
+                    x: center.x - 75.0,
+                    y: center.y - 22.0,
+                    width: 150.0,
+                    height: 44.0,
+                };
+                let mut btn = Node::new_rectangle(id, "Primary Button", rect, Color::rgb(10, 132, 255));
+                btn.corner_radius = crate::style::CornerRadius::uniform(10.0);
+                self.nodes.push(btn);
+
+                let text_id = self.alloc_id();
+                let text = Node::new_text(
+                    text_id,
+                    "Button Text",
+                    Vec2::new(rect.x + 42.0, rect.y + 12.0),
+                    "Button",
+                    15.0,
+                    Color::WHITE,
+                );
+                self.nodes.push(text);
+                id
+            }
+            "card" => {
+                let id = self.alloc_id();
+                let rect = Rect {
+                    x: center.x - 160.0,
+                    y: center.y - 110.0,
+                    width: 320.0,
+                    height: 220.0,
+                };
+                let mut card = Node::new_frame(id, "Glass Card", rect);
+                card.corner_radius = crate::style::CornerRadius::uniform(16.0);
+                card.fills = vec![crate::style::Fill::Solid {
+                    color: Color::rgb(30, 41, 59),
+                    opacity: 0.95,
+                }];
+                card.strokes = vec![crate::style::Stroke {
+                    color: Color::rgb(51, 65, 85),
+                    width: 1.0,
+                    align: crate::style::StrokeAlign::Inside,
+                    opacity: 1.0,
+                    style: crate::style::StrokeStyle::Solid,
+                }];
+                card.effects = vec![crate::style::Effect::DropShadow {
+                    offset: Vec2::new(0.0, 10.0),
+                    blur: 25.0,
+                    spread: 0.0,
+                    color: Color::rgba(0, 0, 0, 120),
+                }];
+                self.nodes.push(card);
+
+                let title_id = self.alloc_id();
+                let title = Node::new_text(
+                    title_id,
+                    "Card Header",
+                    Vec2::new(rect.x + 24.0, rect.y + 24.0),
+                    "Modern Card",
+                    20.0,
+                    Color::WHITE,
+                );
+                self.nodes.push(title);
+
+                let desc_id = self.alloc_id();
+                let desc = Node::new_text(
+                    desc_id,
+                    "Card Description",
+                    Vec2::new(rect.x + 24.0, rect.y + 60.0),
+                    "Ultra high-performance Rust UI.",
+                    13.0,
+                    Color::rgb(148, 163, 184),
+                );
+                self.nodes.push(desc);
+
+                id
+            }
+            "input" => {
+                let id = self.alloc_id();
+                let rect = Rect {
+                    x: center.x - 140.0,
+                    y: center.y - 24.0,
+                    width: 280.0,
+                    height: 48.0,
+                };
+                let mut input = Node::new_rectangle(id, "Text Input", rect, Color::rgb(24, 24, 27));
+                input.corner_radius = crate::style::CornerRadius::uniform(8.0);
+                input.strokes = vec![crate::style::Stroke {
+                    color: Color::rgb(63, 63, 70),
+                    width: 1.0,
+                    align: crate::style::StrokeAlign::Inside,
+                    opacity: 1.0,
+                    style: crate::style::StrokeStyle::Solid,
+                }];
+                self.nodes.push(input);
+
+                let placeholder_id = self.alloc_id();
+                let placeholder = Node::new_text(
+                    placeholder_id,
+                    "Placeholder",
+                    Vec2::new(rect.x + 16.0, rect.y + 14.0),
+                    "Enter your text...",
+                    14.0,
+                    Color::rgb(113, 113, 122),
+                );
+                self.nodes.push(placeholder);
+                id
+            }
+            "avatar" => {
+                let id = self.alloc_id();
+                let rect = Rect {
+                    x: center.x - 24.0,
+                    y: center.y - 24.0,
+                    width: 48.0,
+                    height: 48.0,
+                };
+                let avatar = Node::new_ellipse(id, "Avatar Badge", rect, Color::rgb(139, 92, 246));
+                self.nodes.push(avatar);
+
+                let text_id = self.alloc_id();
+                let text = Node::new_text(
+                    text_id,
+                    "Initials",
+                    Vec2::new(rect.x + 14.0, rect.y + 14.0),
+                    "SA",
+                    15.0,
+                    Color::WHITE,
+                );
+                self.nodes.push(text);
+                id
+            }
+            _ => self.alloc_id(),
+        }
+    }
+
     pub fn duplicate_node(&mut self, id: NodeId) -> Option<NodeId> {
         let cloned = self.find_node(id)?.clone();
         let mut new_node = cloned;

@@ -7,6 +7,10 @@ pub enum ActiveTool {
     Frame,
     Rectangle,
     Ellipse,
+    Line,
+    Arrow,
+    Star,
+    Polygon,
     Text,
     Hand,
 }
@@ -379,8 +383,13 @@ fn draw_node(
 
     match node.kind {
         NodeKind::Frame | NodeKind::Rectangle => {
-            let corner_radius = node.corner_radius.top_left * state.zoom;
-            painter.rect(screen_rect, corner_radius, fill_color, stroke, egui::StrokeKind::Inside);
+            let cr = egui::CornerRadius {
+                nw: (node.corner_radius.top_left * state.zoom).round().min(255.0) as u8,
+                ne: (node.corner_radius.top_right * state.zoom).round().min(255.0) as u8,
+                se: (node.corner_radius.bottom_right * state.zoom).round().min(255.0) as u8,
+                sw: (node.corner_radius.bottom_left * state.zoom).round().min(255.0) as u8,
+            };
+            painter.rect(screen_rect, cr, fill_color, stroke, egui::StrokeKind::Inside);
 
             // Draw children if Frame
             if node.kind == NodeKind::Frame {
@@ -442,7 +451,41 @@ fn draw_node(
             }
         }
         NodeKind::Line => {
-            painter.line_segment([screen_rect.min, screen_rect.max], stroke);
+            let p1 = Pos2::new(screen_rect.min.x, screen_rect.center().y);
+            let p2 = Pos2::new(screen_rect.max.x, screen_rect.center().y);
+            painter.line_segment([p1, p2], stroke);
+        }
+        NodeKind::Arrow => {
+            let p1 = Pos2::new(screen_rect.min.x, screen_rect.center().y);
+            let p2 = Pos2::new(screen_rect.max.x, screen_rect.center().y);
+            painter.line_segment([p1, p2], stroke);
+
+            let head_len = (12.0 * state.zoom).clamp(6.0, 24.0);
+            let head_top = Pos2::new(p2.x - head_len, p2.y - head_len * 0.5);
+            let head_bot = Pos2::new(p2.x - head_len, p2.y + head_len * 0.5);
+            painter.add(egui::Shape::convex_polygon(
+                vec![p2, head_top, head_bot],
+                stroke.color,
+                EguiStroke::NONE,
+            ));
+        }
+        NodeKind::Star => {
+            let center = screen_rect.center();
+            let r_outer = (screen_rect.width() * 0.5).min(screen_rect.height() * 0.5);
+            let r_inner = r_outer * 0.382;
+            let mut pts = Vec::with_capacity(10);
+            for i in 0..10 {
+                let angle = (i as f32) * std::f32::consts::PI / 5.0 - std::f32::consts::FRAC_PI_2;
+                let r = if i % 2 == 0 { r_outer } else { r_inner };
+                pts.push(Pos2::new(center.x + angle.cos() * r, center.y + angle.sin() * r));
+            }
+            painter.add(egui::Shape::convex_polygon(pts, fill_color, stroke));
+        }
+        NodeKind::Polygon => {
+            let top = Pos2::new(screen_rect.center().x, screen_rect.min.y);
+            let right = Pos2::new(screen_rect.max.x, screen_rect.max.y);
+            let left = Pos2::new(screen_rect.min.x, screen_rect.max.y);
+            painter.add(egui::Shape::convex_polygon(vec![top, right, left], fill_color, stroke));
         }
     }
 }

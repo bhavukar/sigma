@@ -55,6 +55,18 @@ impl Default for Fill {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StrokeStyle {
+    Solid,
+    Dashed,
+}
+
+impl Default for StrokeStyle {
+    fn default() -> Self {
+        Self::Solid
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StrokeAlign {
     Inside,
     Center,
@@ -73,6 +85,8 @@ pub struct Stroke {
     pub width: f32,
     pub align: StrokeAlign,
     pub opacity: f32,
+    #[serde(default)]
+    pub style: StrokeStyle,
 }
 
 impl Default for Stroke {
@@ -82,6 +96,7 @@ impl Default for Stroke {
             width: 1.0,
             align: StrokeAlign::Inside,
             opacity: 1.0,
+            style: StrokeStyle::Solid,
         }
     }
 }
