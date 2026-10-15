@@ -34,6 +34,7 @@ pub struct CanvasState {
     pub creation_start_pos: Option<Vec2>,
     pub active_handle: Option<ResizeHandle>,
     pub initial_node_rect: Option<Rect>,
+    pub remote_peers: std::collections::HashMap<String, sigma_core::PeerState>,
 }
 
 impl Default for CanvasState {
@@ -48,6 +49,7 @@ impl Default for CanvasState {
             creation_start_pos: None,
             active_handle: None,
             initial_node_rect: None,
+            remote_peers: std::collections::HashMap::new(),
         }
     }
 }
@@ -181,6 +183,66 @@ pub fn render_canvas(
                 dim_text,
                 egui::FontId::proportional(11.0),
                 Color32::from_rgb(180, 200, 255),
+            );
+        }
+    }
+
+    // 6. Render Remote Peers' Selections
+    for peer in state.remote_peers.values() {
+        if !peer.selected_ids.is_empty() {
+            if let Some(bbox) = doc.selection_bounding_box(&peer.selected_ids) {
+                let screen_bbox = state.world_rect_to_screen(bbox, canvas_rect);
+                let peer_c32 = Color32::from_rgb(peer.color.r, peer.color.g, peer.color.b);
+                let stroke = EguiStroke::new(1.5, peer_c32);
+                painter.rect_stroke(screen_bbox, 0.0, stroke, egui::StrokeKind::Outside);
+
+                // Peer label tag on top-left of selection box
+                let tag_w = (peer.name.len() as f32 * 7.0 + 10.0).max(40.0);
+                let tag_rect = EguiRect::from_min_size(
+                    Pos2::new(screen_bbox.min.x, screen_bbox.min.y - 18.0),
+                    EguiVec2::new(tag_w, 16.0),
+                );
+                painter.rect_filled(tag_rect, 2.0, peer_c32);
+                painter.text(
+                    tag_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &peer.name,
+                    egui::FontId::proportional(10.0),
+                    Color32::WHITE,
+                );
+            }
+        }
+    }
+
+    // 7. Render Remote Peers' Cursors
+    for peer in state.remote_peers.values() {
+        let cursor_screen = state.world_to_screen(peer.cursor, canvas_rect);
+        if canvas_rect.contains(cursor_screen) {
+            let peer_c32 = Color32::from_rgb(peer.color.r, peer.color.g, peer.color.b);
+
+            // Figma cursor arrow polygon
+            let tip = cursor_screen;
+            let p1 = Pos2::new(tip.x, tip.y + 16.0);
+            let p2 = Pos2::new(tip.x + 4.5, tip.y + 12.0);
+            let p3 = Pos2::new(tip.x + 12.0, tip.y + 12.0);
+
+            painter.add(egui::Shape::convex_polygon(
+                vec![tip, p1, p2, p3],
+                peer_c32,
+                EguiStroke::new(1.0, Color32::WHITE),
+            ));
+
+            // Name tag pill badge
+            let pill_origin = Pos2::new(tip.x + 12.0, tip.y + 14.0);
+            let pill_width = (peer.name.len() as f32 * 7.5 + 12.0).max(45.0);
+            let pill_rect = EguiRect::from_min_size(pill_origin, EguiVec2::new(pill_width, 18.0));
+            painter.rect_filled(pill_rect, 3.0, peer_c32);
+            painter.text(
+                pill_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                &peer.name,
+                egui::FontId::proportional(11.0),
+                Color32::WHITE,
             );
         }
     }

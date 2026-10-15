@@ -1,0 +1,17 @@
+name = "sigma-sync"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+account_id = "6043b508171485d9a9a662cd29a81e05"
+
+[durable_objects]
+bindings = [
+  { name = "SIGMA_ROOM", class_name = "SigmaRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SigmaRoom"]
+
+[assets]
+directory = "../../dist"
+binding = "ASSETS"

@@ -3,10 +3,12 @@
 mod app;
 mod canvas;
 mod inspector;
+mod network;
 mod sidebar;
 mod toolbar;
 
 pub use app::SigmaApp;
+pub use network::NetworkManager;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;

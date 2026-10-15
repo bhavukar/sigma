@@ -2,7 +2,10 @@
 
 > A blazing fast, memory-safe, open-source alternative to Figma built in **Rust** with **WebAssembly & WebGPU/WebGL**.
 
+🌐 **Live Demo (Multiplayer):** [https://sigma-sync.bhavuk-arora03.workers.dev](https://sigma-sync.bhavuk-arora03.workers.dev)
+
 Sigma is engineered from the ground up for extreme performance:
+* **Real-time Multiplayer:** Live multi-cursor presence, remote selection tags, and real-time document synchronization running on Cloudflare Workers & Durable Objects at the edge.
 * **Web First:** Compiles directly to WebAssembly (`wasm32-unknown-unknown`) running in any modern browser at 60–120 FPS.
 * **Native Desktop:** Compiles into native standalone applications for **macOS (Metal)**, **Windows (DX12/Vulkan)**, and **Linux (Vulkan)** from the exact same codebase.
 * **Figma Pro Features:** Infinite canvas, Auto Layout (Flexbox flow), Scene Graph hierarchy, 8-handle transformation boxes, real-time property inspector, SVG export, and live CSS Dev Mode.

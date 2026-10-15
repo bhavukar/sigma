@@ -2057,6 +2057,7 @@ dependencies = [
  "eframe",
  "egui",
  "env_logger",
+ "js-sys",
  "log",
  "serde",
  "serde_json",
