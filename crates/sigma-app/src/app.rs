@@ -104,6 +104,7 @@ impl SigmaApp {
                     }
                     if let Some(remote_doc) = doc {
                         self.doc = remote_doc;
+                        self.doc.rebuild_spatial_index();
                     }
                 }
                 SyncMessage::Join {
@@ -137,9 +138,47 @@ impl SigmaApp {
                         }
                     }
                 }
+                SyncMessage::NodeTransform {
+                    user_id,
+                    node_id,
+                    rect,
+                } => {
+                    if user_id != self.network.user_id {
+                        let found = if let Some(node) = self.doc.find_node_mut(node_id) {
+                            node.rect = rect;
+                            true
+                        } else {
+                            false
+                        };
+                        if found {
+                            self.doc.spatial_index.update(node_id, rect);
+                        }
+                    }
+                }
+                SyncMessage::NodesMove {
+                    user_id,
+                    node_ids,
+                    delta,
+                } => {
+                    if user_id != self.network.user_id {
+                        for id in node_ids {
+                            let new_rect = if let Some(node) = self.doc.find_node_mut(id) {
+                                node.rect.x += delta.x;
+                                node.rect.y += delta.y;
+                                Some(node.rect)
+                            } else {
+                                None
+                            };
+                            if let Some(rect) = new_rect {
+                                self.doc.spatial_index.update(id, rect);
+                            }
+                        }
+                    }
+                }
                 SyncMessage::DocUpdate { user_id, doc } => {
                     if user_id != self.network.user_id {
                         self.doc = doc;
+                        self.doc.rebuild_spatial_index();
                     }
                 }
                 SyncMessage::Leave { user_id } => {
@@ -406,6 +445,7 @@ impl SigmaApp {
                         // Interactive resizing calculations
                         let delta = world_mouse - start;
                         for &id in &self.canvas_state.selected_ids {
+                            let mut updated_rect = None;
                             if let Some(node) = self.doc.find_node_mut(id) {
                                 let mut new_rect = initial_rect;
                                 match handle {
@@ -451,20 +491,30 @@ impl SigmaApp {
                                     }
                                 }
                                 node.rect = new_rect;
+                                updated_rect = Some(new_rect);
+                            }
+                            if let Some(new_rect) = updated_rect {
+                                self.doc.spatial_index.update(id, new_rect);
+                                self.network.send_node_transform(id, new_rect);
                             }
                         }
-                        self.network.send_doc_update(&self.doc);
                     } else if let Some(start) = self.canvas_state.drag_start_pos {
                         // Move elements
                         let delta = world_mouse - start;
                         for &id in &self.canvas_state.selected_ids {
-                            if let Some(node) = self.doc.find_node_mut(id) {
+                            let new_rect = if let Some(node) = self.doc.find_node_mut(id) {
                                 node.rect.x += delta.x;
                                 node.rect.y += delta.y;
+                                Some(node.rect)
+                            } else {
+                                None
+                            };
+                            if let Some(rect) = new_rect {
+                                self.doc.spatial_index.update(id, rect);
                             }
                         }
                         self.canvas_state.drag_start_pos = Some(world_mouse);
-                        self.network.send_doc_update(&self.doc);
+                        self.network.send_nodes_move(&self.canvas_state.selected_ids, delta);
                     } else if self.canvas_state.marquee_start.is_some() {
                         self.canvas_state.marquee_current = Some(world_mouse);
                     }
@@ -479,19 +529,14 @@ impl SigmaApp {
                         self.canvas_state.marquee_current,
                     ) {
                         let m_box = Rect::from_min_max(m_start, m_curr);
-                        let mut newly_selected = Vec::new();
-                        for node in &self.doc.nodes {
-                            if node.visible && !node.locked && node.rect.intersects(&m_box) {
-                                newly_selected.push(node.id);
-                            }
-                        }
+                        let newly_selected = self.doc.query_marquee_box(m_box);
                         if !newly_selected.is_empty() {
                             self.canvas_state.selected_ids = newly_selected;
                             self.network.send_selection(&self.canvas_state.selected_ids);
                         }
                         self.canvas_state.marquee_start = None;
                         self.canvas_state.marquee_current = None;
-                    } else {
+                    } else if self.canvas_state.drag_start_pos.is_some() {
                         self.canvas_state.drag_start_pos = None;
                         self.network.send_doc_update(&self.doc);
                     }

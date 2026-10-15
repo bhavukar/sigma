@@ -46,6 +46,21 @@ pub fn export_node_to_svg(node: &Node) -> String {
     svg
 }
 
+pub fn xml_escape(input: &str) -> String {
+    let mut escaped = String::with_capacity(input.len());
+    for c in input.chars() {
+        match c {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            _ => escaped.push(c),
+        }
+    }
+    escaped
+}
+
 fn render_node_svg(node: &Node, svg: &mut String) {
     if !node.visible {
         return;
@@ -99,9 +114,11 @@ fn render_node_svg(node: &Node, svg: &mut String) {
         NodeKind::Text => {
             if let Some(text_props) = &node.text_props {
                 let baseline_y = node.rect.y + text_props.font_size;
+                let safe_font = xml_escape(&text_props.font_family);
+                let safe_content = xml_escape(&text_props.formatted_content());
                 svg.push_str(&format!(
-                    r#"  <text x="{}" y="{}" font-size="{}" font-family="Inter, sans-serif" {}>{}</text>"#,
-                    node.rect.x, baseline_y, text_props.font_size, fill_attr, text_props.content
+                    r#"  <text x="{}" y="{}" font-size="{}" font-family="{}, sans-serif" {}>{}</text>"#,
+                    node.rect.x, baseline_y, text_props.font_size, safe_font, fill_attr, safe_content
                 ));
                 svg.push('\n');
             }
@@ -164,7 +181,8 @@ fn render_node_svg(node: &Node, svg: &mut String) {
 
 pub fn export_to_css(node: &Node) -> String {
     let mut css = String::new();
-    css.push_str(&format!("/* CSS for {} */\n", node.name));
+    let safe_name = node.name.replace("*/", "* /");
+    css.push_str(&format!("/* CSS for {} */\n", safe_name));
     css.push_str(&format!("width: {:.0}px;\n", node.rect.width));
     css.push_str(&format!("height: {:.0}px;\n", node.rect.height));
 
@@ -183,8 +201,18 @@ pub fn export_to_css(node: &Node) -> String {
         }
     }
 
-    if node.corner_radius.top_left > 0.0 {
-        css.push_str(&format!("border-radius: {:.0}px;\n", node.corner_radius.top_left));
+    if node.corner_radius.is_uniform() {
+        if node.corner_radius.top_left > 0.0 {
+            css.push_str(&format!("border-radius: {:.0}px;\n", node.corner_radius.top_left));
+        }
+    } else {
+        css.push_str(&format!(
+            "border-radius: {:.0}px {:.0}px {:.0}px {:.0}px;\n",
+            node.corner_radius.top_left,
+            node.corner_radius.top_right,
+            node.corner_radius.bottom_right,
+            node.corner_radius.bottom_left
+        ));
     }
 
     if let Some(stroke) = node.strokes.first() {

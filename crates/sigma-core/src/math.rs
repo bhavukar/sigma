@@ -46,6 +46,34 @@ impl Vec2 {
             y: self.y.max(other.y),
         }
     }
+
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
+
+    pub fn safe_div(self, rhs: f32) -> Self {
+        if rhs.abs() < 1e-6 || !rhs.is_finite() {
+            Self::ZERO
+        } else {
+            Self {
+                x: self.x / rhs,
+                y: self.y / rhs,
+            }
+        }
+    }
+}
+
+#[inline]
+pub fn safe_clamp(val: f32, min: f32, max: f32) -> f32 {
+    if val.is_nan() {
+        min
+    } else if val < min {
+        min
+    } else if val > max {
+        max
+    } else {
+        val
+    }
 }
 
 impl std::ops::Add for Vec2 {
@@ -106,6 +134,33 @@ impl Rect {
 
     pub fn new(x: f32, y: f32, width: f32, height: f32) -> Self {
         Self { x, y, width, height }
+    }
+
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite() && self.width.is_finite() && self.height.is_finite()
+    }
+
+    pub fn normalized(self) -> Self {
+        let mut x = if self.x.is_finite() { self.x } else { 0.0 };
+        let mut y = if self.y.is_finite() { self.y } else { 0.0 };
+        let mut w = if self.width.is_finite() { self.width } else { 0.0 };
+        let mut h = if self.height.is_finite() { self.height } else { 0.0 };
+
+        if w < 0.0 {
+            x += w;
+            w = -w;
+        }
+        if h < 0.0 {
+            y += h;
+            h = -h;
+        }
+
+        Self {
+            x,
+            y,
+            width: w.max(0.0),
+            height: h.max(0.0),
+        }
     }
 
     pub fn from_origin_size(origin: Vec2, size: Vec2) -> Self {

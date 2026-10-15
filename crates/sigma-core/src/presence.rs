@@ -1,6 +1,6 @@
 use crate::color::Color;
 use crate::document::Document;
-use crate::math::Vec2;
+use crate::math::{Rect, Vec2};
 use crate::node::NodeId;
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,18 @@ pub enum SyncMessage {
     Selection {
         user_id: String,
         selected_ids: Vec<NodeId>,
+    },
+    #[serde(rename = "node_transform")]
+    NodeTransform {
+        user_id: String,
+        node_id: NodeId,
+        rect: Rect,
+    },
+    #[serde(rename = "nodes_move")]
+    NodesMove {
+        user_id: String,
+        node_ids: Vec<NodeId>,
+        delta: Vec2,
     },
     #[serde(rename = "doc_update")]
     DocUpdate {

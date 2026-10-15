@@ -3,13 +3,38 @@ export interface Env {
   ASSETS?: Fetcher;
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Access-Control-Allow-Origin": "*",
+};
+
+// Security constants
+const MAX_ROOM_ID_LEN = 64;
+const MAX_PAYLOAD_BYTES = 512 * 1024; // 512 KB
+const MAX_SESSIONS_PER_ROOM = 50;
+const MAX_MESSAGES_PER_SEC = 120;
+
+function sanitizeString(str: unknown, maxLen: number): string {
+  if (typeof str !== "string") return "";
+  return str.slice(0, maxLen).replace(/[<>]/g, "");
+}
+
+function sanitizeRoomId(roomId: string | null): string {
+  if (!roomId) return "default";
+  const cleaned = roomId.trim().slice(0, MAX_ROOM_ID_LEN).replace(/[^a-zA-Z0-9_-]/g, "");
+  return cleaned || "default";
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     // WebSocket route for real-time multiplayer
     if (url.pathname === "/ws" || url.pathname.startsWith("/ws/")) {
-      const roomId = url.searchParams.get("room") || "default";
+      const rawRoom = url.searchParams.get("room");
+      const roomId = sanitizeRoomId(rawRoom);
       const id = env.SIGMA_ROOM.idFromName(roomId);
       const room = env.SIGMA_ROOM.get(id);
       return room.fetch(request);
@@ -17,35 +42,74 @@ export default {
 
     // Health check endpoint
     if (url.pathname === "/health") {
-      return new Response(JSON.stringify({ status: "ok", service: "sigma-sync" }), {
-        headers: { "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ status: "ok", service: "sigma-sync", v: "2.0.0" }), {
+        headers: {
+          "Content-Type": "application/json",
+          ...SECURITY_HEADERS,
+        },
       });
     }
 
     // Serve static assets if available (Web app)
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const assetResp = await env.ASSETS.fetch(request);
+      const newHeaders = new Headers(assetResp.headers);
+      for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+        newHeaders.set(k, v);
+      }
+      return new Response(assetResp.body, {
+        status: assetResp.status,
+        statusText: assetResp.statusText,
+        headers: newHeaders,
+      });
     }
 
     return new Response("Sigma Real-time Multiplayer Engine (Cloudflare Workers)", {
       status: 200,
+      headers: SECURITY_HEADERS,
     });
   },
 };
 
+interface SessionMeta {
+  userId: string;
+  userName: string;
+  color: any;
+  msgCount: number;
+  lastResetTime: number;
+}
+
 export class SigmaRoom implements DurableObject {
   state: DurableObjectState;
-  sessions: Map<WebSocket, { userId: string; userName: string; color: string }>;
+  sessions: Map<WebSocket, SessionMeta>;
   latestDoc: any = null;
+  loaded: boolean = false;
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.sessions = new Map();
   }
 
+  async ensureLoaded() {
+    if (!this.loaded) {
+      try {
+        this.latestDoc = (await this.state.storage.get("latestDoc")) || null;
+      } catch (e) {
+        console.error("Failed to load initial doc from SQLite storage:", e);
+      }
+      this.loaded = true;
+    }
+  }
+
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("Expected websocket", { status: 426 });
+      return new Response("Expected websocket", { status: 426, headers: SECURITY_HEADERS });
+    }
+
+    await this.ensureLoaded();
+
+    if (this.sessions.size >= MAX_SESSIONS_PER_ROOM) {
+      return new Response("Room capacity reached", { status: 429, headers: SECURITY_HEADERS });
     }
 
     const pair = new WebSocketPair();
@@ -53,23 +117,59 @@ export class SigmaRoom implements DurableObject {
 
     server.accept();
 
-    server.addEventListener("message", (event) => {
+    const sessionMeta: SessionMeta = {
+      userId: "",
+      userName: "Designer",
+      color: { r: 10, g: 132, b: 255, a: 255 },
+      msgCount: 0,
+      lastResetTime: Date.now(),
+    };
+    this.sessions.set(server, sessionMeta);
+
+    server.addEventListener("message", async (event) => {
       try {
-        const msg = JSON.parse(event.data as string);
+        if (typeof event.data !== "string") {
+          return;
+        }
+
+        // Payload size protection
+        if (event.data.length > MAX_PAYLOAD_BYTES) {
+          server.close(1009, "Message payload too large");
+          return;
+        }
+
+        // Rate limiting sliding window
+        const now = Date.now();
+        if (now - sessionMeta.lastResetTime > 1000) {
+          sessionMeta.msgCount = 0;
+          sessionMeta.lastResetTime = now;
+        }
+        sessionMeta.msgCount++;
+        if (sessionMeta.msgCount > MAX_MESSAGES_PER_SEC) {
+          // Drop excessive flood messages to protect peers
+          return;
+        }
+
+        const msg = JSON.parse(event.data);
+        if (!msg || typeof msg !== "object" || !msg.type) {
+          return;
+        }
 
         if (msg.type === "join") {
-          this.sessions.set(server, {
-            userId: msg.user_id,
-            userName: msg.user_name,
-            color: msg.color,
-          });
+          sessionMeta.userId = sanitizeString(msg.user_id, 48) || `user_${Date.now()}`;
+          sessionMeta.userName = sanitizeString(msg.user_name, 32) || "Designer";
+          if (msg.color && typeof msg.color === "object") {
+            sessionMeta.color = msg.color;
+          }
 
           // Send current peers and latest document snapshot
-          const peers = Array.from(this.sessions.values()).map((s) => ({
-            id: s.userId,
-            name: s.userName,
-            color: s.color,
-          }));
+          const peers = Array.from(this.sessions.values())
+            .filter((s) => s.userId.length > 0)
+            .map((s) => ({
+              id: s.userId,
+              name: s.userName,
+              color: s.color,
+            }));
 
           server.send(
             JSON.stringify({
@@ -82,6 +182,10 @@ export class SigmaRoom implements DurableObject {
 
         if (msg.type === "doc_update" && msg.doc) {
           this.latestDoc = msg.doc;
+          // Asynchronously persist to SQLite storage without blocking WebSocket dispatch
+          this.state.storage.put("latestDoc", this.latestDoc).catch((err) => {
+            console.error("Storage persistence error:", err);
+          });
         }
 
         // Broadcast to all other connected peers in this room
@@ -99,7 +203,7 @@ export class SigmaRoom implements DurableObject {
       const session = this.sessions.get(server);
       this.sessions.delete(server);
 
-      if (session) {
+      if (session && session.userId) {
         const leaveMsg = JSON.stringify({
           type: "leave",
           user_id: session.userId,

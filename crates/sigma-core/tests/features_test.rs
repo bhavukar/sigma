@@ -111,3 +111,132 @@ fn test_shapes_and_svg_export() {
     assert!(node_svg.contains("<svg xmlns=\"http://www.w3.org/2000/svg\""));
     assert!(node_svg.contains("<polygon points="));
 }
+
+#[test]
+fn test_security_xss_sanitization() {
+    use sigma_core::xml_escape;
+
+    // Test raw xml_escape function
+    let payload = "<script>alert('xss')</script> & \"injection\"";
+    let sanitized = xml_escape(payload);
+    assert!(!sanitized.contains('<'));
+    assert!(!sanitized.contains('>'));
+    assert!(!sanitized.contains('"'));
+    assert!(!sanitized.contains('\''));
+    assert!(sanitized.contains("&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt; &amp; &quot;injection&quot;"));
+
+    // Test SVG export with malicious content inside text node
+    let mut doc = Document::new("SecurityTest");
+    let text_id = doc.alloc_id();
+    let malicious_text = Node::new_text(
+        text_id,
+        "Malicious <tag>",
+        Vec2::new(10.0, 10.0),
+        "<img src=x onerror=alert(1)>",
+        16.0,
+        Color::WHITE,
+    );
+    doc.nodes.push(malicious_text);
+
+    let svg = export_to_svg(&doc);
+    assert!(!svg.contains("<img src=x"));
+    assert!(svg.contains("&lt;img src=x onerror=alert(1)&gt;"));
+}
+
+#[test]
+fn test_security_nan_clamp_safety() {
+    use sigma_core::safe_clamp;
+
+    // Standard f32::clamp(min, max) panics on NaN in Rust!
+    // safe_clamp must never panic and fall back safely.
+    let clamped_nan = safe_clamp(f32::NAN, 10.0, 50.0);
+    assert_eq!(clamped_nan, 10.0);
+
+    let clamped_pos_inf = safe_clamp(f32::INFINITY, 10.0, 50.0);
+    assert_eq!(clamped_pos_inf, 50.0);
+
+    let clamped_neg_inf = safe_clamp(f32::NEG_INFINITY, 10.0, 50.0);
+    assert_eq!(clamped_neg_inf, 10.0);
+
+    let clamped_valid = safe_clamp(25.0, 10.0, 50.0);
+    assert_eq!(clamped_valid, 25.0);
+
+    // Vec2 safe_div
+    let v = Vec2::new(10.0, 20.0);
+    let divided_zero = v.safe_div(0.0);
+    assert!(divided_zero.is_finite());
+}
+
+#[test]
+fn test_spatial_index_and_hit_testing() {
+    let mut doc = Document::new("Spatial");
+
+    // Add nodes in different quadrants
+    let id1 = doc.add_node(Node::new_rectangle(0, "Quadrant 1", Rect::new(50.0, 50.0, 100.0, 100.0), Color::WHITE));
+    let id2 = doc.add_node(Node::new_rectangle(0, "Quadrant 2", Rect::new(1000.0, 1000.0, 100.0, 100.0), Color::WHITE));
+    let id3 = doc.add_node(Node::new_rectangle(0, "Quadrant 1 Overlap", Rect::new(80.0, 80.0, 50.0, 50.0), Color::WHITE));
+
+    // Spatial hit test for id1 & id3: id3 is on top of id1 at (90, 90)
+    let hit_overlap = doc.hit_test(Vec2::new(90.0, 90.0));
+    assert_eq!(hit_overlap, Some(id3));
+
+    // Hit test id1 where id3 does not overlap
+    let hit_id1 = doc.hit_test(Vec2::new(60.0, 60.0));
+    assert_eq!(hit_id1, Some(id1));
+
+    // Hit test id2
+    let hit_id2 = doc.hit_test(Vec2::new(1050.0, 1050.0));
+    assert_eq!(hit_id2, Some(id2));
+
+    // Hit test empty space
+    let hit_empty = doc.hit_test(Vec2::new(500.0, 500.0));
+    assert_eq!(hit_empty, None);
+
+    // Marquee query around Quadrant 1
+    let marquee = Rect::new(0.0, 0.0, 200.0, 200.0);
+    let selected = doc.query_marquee_box(marquee);
+    assert!(selected.contains(&id1));
+    assert!(selected.contains(&id3));
+    assert!(!selected.contains(&id2));
+}
+
+#[test]
+fn test_delta_sync_serialization() {
+    use sigma_core::SyncMessage;
+
+    // NodeTransform delta
+    let transform_msg = SyncMessage::NodeTransform {
+        user_id: "user-123".to_string(),
+        node_id: 42,
+        rect: Rect::new(100.0, 200.0, 300.0, 400.0),
+    };
+    let json = serde_json::to_string(&transform_msg).expect("Serialize transform");
+    assert!(json.len() < 120, "Delta message must be compact");
+    let deserialized: SyncMessage = serde_json::from_str(&json).expect("Deserialize transform");
+    match deserialized {
+        SyncMessage::NodeTransform { user_id, node_id, rect } => {
+            assert_eq!(user_id, "user-123");
+            assert_eq!(node_id, 42);
+            assert_eq!(rect.width, 300.0);
+        }
+        _ => panic!("Expected NodeTransform"),
+    }
+
+    // NodesMove delta
+    let move_msg = SyncMessage::NodesMove {
+        user_id: "user-456".to_string(),
+        node_ids: vec![1, 2, 3],
+        delta: Vec2::new(15.5, -30.0),
+    };
+    let json_move = serde_json::to_string(&move_msg).expect("Serialize move");
+    assert!(json_move.len() < 120, "Delta move must be compact");
+    let deserialized_move: SyncMessage = serde_json::from_str(&json_move).expect("Deserialize move");
+    match deserialized_move {
+        SyncMessage::NodesMove { user_id, node_ids, delta } => {
+            assert_eq!(user_id, "user-456");
+            assert_eq!(node_ids, vec![1, 2, 3]);
+            assert_eq!(delta.x, 15.5);
+        }
+        _ => panic!("Expected NodesMove"),
+    }
+}

@@ -1,6 +1,7 @@
 use crate::color::Color;
 use crate::math::{Rect, Vec2};
 use crate::node::{Node, NodeId, NodeKind};
+use crate::spatial::SpatialIndex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,6 +10,8 @@ pub struct Document {
     pub nodes: Vec<Node>,
     pub next_id: NodeId,
     pub canvas_background: Color,
+    #[serde(skip, default)]
+    pub spatial_index: SpatialIndex,
 }
 
 impl Default for Document {
@@ -18,8 +21,10 @@ impl Default for Document {
             nodes: vec![],
             next_id: 1,
             canvas_background: Color::rgba(30, 30, 30, 255),
+            spatial_index: SpatialIndex::default(),
         };
         doc.load_default_template();
+        doc.rebuild_spatial_index();
         doc
     }
 }
@@ -31,6 +36,23 @@ impl Document {
             nodes: vec![],
             next_id: 1,
             canvas_background: Color::rgba(30, 30, 30, 255),
+            spatial_index: SpatialIndex::default(),
+        }
+    }
+
+    pub fn rebuild_spatial_index(&mut self) {
+        self.spatial_index.rebuild(&self.nodes);
+        for node in &self.nodes {
+            if node.kind == NodeKind::Frame {
+                for child in &node.children {
+                    if child.visible {
+                        let mut world_rect = child.rect;
+                        world_rect.x += node.rect.x;
+                        world_rect.y += node.rect.y;
+                        self.spatial_index.insert(child.id, world_rect);
+                    }
+                }
+            }
         }
     }
 
@@ -43,11 +65,15 @@ impl Document {
     pub fn add_node(&mut self, mut node: Node) -> NodeId {
         let id = self.alloc_id();
         node.id = id;
+        if node.visible {
+            self.spatial_index.insert(id, node.rect);
+        }
         self.nodes.push(node);
         id
     }
 
     pub fn remove_node(&mut self, id: NodeId) -> Option<Node> {
+        self.spatial_index.remove(id);
         if let Some(pos) = self.nodes.iter().position(|n| n.id == id) {
             return Some(self.nodes.remove(pos));
         }
@@ -88,12 +114,33 @@ impl Document {
     }
 
     pub fn hit_test(&self, point: Vec2) -> Option<NodeId> {
-        // Top-most rendered element is last in the list, so test in reverse order
+        let candidates = self.spatial_index.query_point(point);
+        if !candidates.is_empty() {
+            let cand_set: std::collections::HashSet<NodeId> = candidates.into_iter().collect();
+            // Test in reverse render order to pick the topmost node
+            for node in self.nodes.iter().rev() {
+                if !node.visible || node.locked {
+                    continue;
+                }
+                if node.kind == NodeKind::Frame {
+                    let local_point = Vec2::new(point.x - node.rect.x, point.y - node.rect.y);
+                    for child in node.children.iter().rev() {
+                        if child.visible && !child.locked && (cand_set.contains(&child.id) || child.rect.contains_point(local_point)) {
+                            return Some(child.id);
+                        }
+                    }
+                }
+                if cand_set.contains(&node.id) {
+                    return Some(node.id);
+                }
+            }
+        }
+
+        // Fallback: full reverse-order scan
         for node in self.nodes.iter().rev() {
             if !node.visible || node.locked {
                 continue;
             }
-            // If frame, check its children first
             if node.kind == NodeKind::Frame {
                 let local_point = Vec2::new(point.x - node.rect.x, point.y - node.rect.y);
                 for child in node.children.iter().rev() {
@@ -107,6 +154,28 @@ impl Document {
             }
         }
         None
+    }
+
+    pub fn query_marquee_box(&self, bbox: Rect) -> Vec<NodeId> {
+        let candidates = self.spatial_index.query_rect(bbox);
+        if !candidates.is_empty() {
+            let cand_set: std::collections::HashSet<NodeId> = candidates.into_iter().collect();
+            let mut result = Vec::new();
+            for node in &self.nodes {
+                if node.visible && !node.locked && cand_set.contains(&node.id) {
+                    result.push(node.id);
+                }
+            }
+            return result;
+        }
+
+        let mut result = Vec::new();
+        for node in &self.nodes {
+            if node.visible && !node.locked && node.rect.intersects(&bbox) {
+                result.push(node.id);
+            }
+        }
+        result
     }
 
     pub fn selection_bounding_box(&self, ids: &[NodeId]) -> Option<Rect> {
@@ -158,6 +227,7 @@ impl Document {
                 }
             }
         }
+        self.rebuild_spatial_index();
     }
 
     pub fn distribute_selection(&mut self, ids: &[NodeId], horizontal: bool) {
@@ -197,6 +267,7 @@ impl Document {
             }
             current_pos += size + gap;
         }
+        self.rebuild_spatial_index();
     }
 
     pub fn bring_to_front(&mut self, ids: &[NodeId]) {
@@ -279,6 +350,7 @@ impl Document {
         group.children = children;
 
         self.nodes.push(group);
+        self.rebuild_spatial_index();
         Some(group_id)
     }
 
@@ -301,6 +373,7 @@ impl Document {
         });
 
         self.nodes.extend(new_root_nodes);
+        self.rebuild_spatial_index();
         unpacked_ids
     }
 
@@ -314,12 +387,13 @@ impl Document {
         };
         let mut frame = Node::new_frame(id, name, rect);
         frame.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        self.spatial_index.insert(id, rect);
         self.nodes.push(frame);
         id
     }
 
     pub fn insert_component(&mut self, component_type: &str, center: Vec2) -> NodeId {
-        match component_type {
+        let id = match component_type {
             "button" => {
                 let id = self.alloc_id();
                 let rect = Rect {
@@ -452,7 +526,9 @@ impl Document {
                 id
             }
             _ => self.alloc_id(),
-        }
+        };
+        self.rebuild_spatial_index();
+        id
     }
 
     pub fn duplicate_node(&mut self, id: NodeId) -> Option<NodeId> {
@@ -463,6 +539,9 @@ impl Document {
         new_node.name = format!("{} Copy", new_node.name);
         new_node.rect.x += 20.0;
         new_node.rect.y += 20.0;
+        if new_node.visible {
+            self.spatial_index.insert(new_id, new_node.rect);
+        }
         self.nodes.push(new_node);
         Some(new_id)
     }
@@ -569,6 +648,7 @@ impl Document {
         self.nodes.push(btn);
         self.nodes.push(btn_text);
         self.nodes.push(circle);
+        self.rebuild_spatial_index();
     }
 }
 

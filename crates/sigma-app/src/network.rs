@@ -1,4 +1,4 @@
-use sigma_core::{Color, Document, NodeId, SyncMessage};
+use sigma_core::{Color, Document, NodeId, Rect, SyncMessage, Vec2};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -104,6 +104,24 @@ impl NetworkManager {
         let msg = SyncMessage::Selection {
             user_id: self.user_id.clone(),
             selected_ids: selected_ids.to_vec(),
+        };
+        self.send_message(&msg);
+    }
+
+    pub fn send_node_transform(&self, node_id: NodeId, rect: Rect) {
+        let msg = SyncMessage::NodeTransform {
+            user_id: self.user_id.clone(),
+            node_id,
+            rect,
+        };
+        self.send_message(&msg);
+    }
+
+    pub fn send_nodes_move(&self, node_ids: &[NodeId], delta: Vec2) {
+        let msg = SyncMessage::NodesMove {
+            user_id: self.user_id.clone(),
+            node_ids: node_ids.to_vec(),
+            delta,
         };
         self.send_message(&msg);
     }

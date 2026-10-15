@@ -86,7 +86,7 @@ impl CanvasState {
     pub fn zoom_at_point(&mut self, factor: f32, center_screen: Pos2, canvas_rect: EguiRect) {
         let world_before = self.screen_to_world(center_screen, canvas_rect);
         let old_zoom = self.zoom;
-        self.zoom = (self.zoom * factor).clamp(0.05, 32.0);
+        self.zoom = sigma_core::safe_clamp(self.zoom * factor, 0.05, 32.0);
         let new_zoom = self.zoom;
 
         // Keep the world point under the cursor unchanged
@@ -355,7 +355,7 @@ fn draw_node(
         if let Effect::DropShadow { offset, blur, color, .. } = effect {
             let shadow_offset = EguiVec2::new(offset.x * state.zoom, offset.y * state.zoom);
             let shadow_rect = screen_rect.translate(shadow_offset);
-            let a = ((color.a as f32 * node.opacity * 0.8).clamp(0.0, 255.0)) as u8;
+            let a = (sigma_core::safe_clamp(color.a as f32 * node.opacity * 0.8, 0.0, 255.0)) as u8;
             let shadow_col = Color32::from_rgba_premultiplied(color.r, color.g, color.b, a);
             let shadow_radius = (node.corner_radius.top_left * state.zoom + blur * 0.4).max(0.0);
             painter.rect_filled(shadow_rect, shadow_radius, shadow_col);
@@ -365,7 +365,7 @@ fn draw_node(
     let fill_color = if let Some(fill) = node.fills.first() {
         match fill {
             sigma_core::Fill::Solid { color, opacity } => {
-                let a = ((color.a as f32 * opacity * node.opacity).clamp(0.0, 255.0)) as u8;
+                let a = (sigma_core::safe_clamp(color.a as f32 * opacity * node.opacity, 0.0, 255.0)) as u8;
                 Color32::from_rgba_premultiplied(color.r, color.g, color.b, a)
             }
         }
@@ -374,7 +374,7 @@ fn draw_node(
     };
 
     let stroke = if let Some(s) = node.strokes.first() {
-        let a = ((s.color.a as f32 * s.opacity * node.opacity).clamp(0.0, 255.0)) as u8;
+        let a = (sigma_core::safe_clamp(s.color.a as f32 * s.opacity * node.opacity, 0.0, 255.0)) as u8;
         let c = Color32::from_rgba_premultiplied(s.color.r, s.color.g, s.color.b, a);
         EguiStroke::new(s.width * state.zoom, c)
     } else {
@@ -460,7 +460,7 @@ fn draw_node(
             let p2 = Pos2::new(screen_rect.max.x, screen_rect.center().y);
             painter.line_segment([p1, p2], stroke);
 
-            let head_len = (12.0 * state.zoom).clamp(6.0, 24.0);
+            let head_len = sigma_core::safe_clamp(12.0 * state.zoom, 6.0, 24.0);
             let head_top = Pos2::new(p2.x - head_len, p2.y - head_len * 0.5);
             let head_bot = Pos2::new(p2.x - head_len, p2.y + head_len * 0.5);
             painter.add(egui::Shape::convex_polygon(
