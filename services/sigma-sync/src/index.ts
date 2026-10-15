@@ -40,6 +40,15 @@ export default {
       return room.fetch(request);
     }
 
+    // Room reset route
+    if (url.pathname === "/api/room/reset") {
+      const rawRoom = url.searchParams.get("room") || "design-room";
+      const roomId = sanitizeRoomId(rawRoom);
+      const id = env.SIGMA_ROOM.idFromName(roomId);
+      const room = env.SIGMA_ROOM.get(id);
+      return room.fetch("https://room/reset", { method: "POST" });
+    }
+
     // Better Auth API routes
     if (url.pathname.startsWith("/api/auth/")) {
       const authPath = url.pathname.replace("/api/auth", "");
@@ -187,6 +196,27 @@ export class SigmaRoom implements DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname.includes("reset")) {
+      this.latestDoc = { name: "Untitled Sigma", nodes: [], next_id: 1, canvas_background: { r: 30, g: 30, b: 30, a: 255 } };
+      try {
+        await this.state.storage.deleteAll();
+      } catch (e) {
+        console.error("Storage delete error:", e);
+      }
+      this.loaded = true;
+      for (const [ws] of this.sessions) {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "doc_update", doc: this.latestDoc }));
+          }
+        } catch {}
+      }
+      return new Response(JSON.stringify({ status: "ok", message: "Room reset to empty canvas" }), {
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426, headers: SECURITY_HEADERS });
     }

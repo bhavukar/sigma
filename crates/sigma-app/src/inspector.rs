@@ -68,12 +68,14 @@ pub fn render_inspector(
     history: &mut History,
     network: &NetworkManager,
 ) {
-    ScrollArea::vertical().show(ui, |ui| {
+    ScrollArea::vertical().hscroll(false).auto_shrink([false, false]).show(ui, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+        ui.spacing_mut().button_padding = egui::vec2(5.0, 3.0);
         ui.add_space(6.0);
 
         // Clean Segmented Tabs (Design, Prototype, Export)
         ui.horizontal(|ui| {
-            ui.add_space(8.0);
+            ui.add_space(4.0);
             let tabs = [("Design", 0), ("Prototype", 1), ("Export", 2)];
             for (title, tab_idx) in tabs {
                 let is_active = state.active_inspector_tab == tab_idx;
@@ -120,38 +122,42 @@ pub fn render_inspector(
             return;
         }
 
-        // 1. Alignment & Distribution Toolbar
+        // 1. Alignment & Distribution Toolbar (Compact fitting 280px)
         ui.horizontal(|ui| {
-            if ui.button("⇥").on_hover_text("Align Left").clicked() {
+            ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);
+            ui.spacing_mut().button_padding = egui::vec2(5.0, 3.0);
+            if ui.small_button("⇥").on_hover_text("Align Left").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Left);
             }
-            if ui.button("↔").on_hover_text("Align Horizontal Center").clicked() {
+            if ui.small_button("↔").on_hover_text("Align Horizontal Center").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::CenterHorizontal);
             }
-            if ui.button("⇤").on_hover_text("Align Right").clicked() {
+            if ui.small_button("⇤").on_hover_text("Align Right").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Right);
             }
             ui.separator();
-            if ui.button("⤒").on_hover_text("Align Top").clicked() {
+            if ui.small_button("⤒").on_hover_text("Align Top").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Top);
             }
-            if ui.button("↕").on_hover_text("Align Vertical Center").clicked() {
+            if ui.small_button("↕").on_hover_text("Align Vertical Center").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::CenterVertical);
             }
-            if ui.button("⤓").on_hover_text("Align Bottom").clicked() {
+            if ui.small_button("⤓").on_hover_text("Align Bottom").clicked() {
                 doc.align_selection(&state.selected_ids, AlignmentMode::Bottom);
             }
             ui.separator();
-            if ui.button("⫼").on_hover_text("Distribute Horizontal Spacing").clicked() {
+            if ui.small_button("⫼").on_hover_text("Distribute Horizontal Spacing").clicked() {
                 doc.distribute_selection(&state.selected_ids, true);
             }
-            if ui.button("⫵").on_hover_text("Distribute Vertical Spacing").clicked() {
+            if ui.small_button("⫵").on_hover_text("Distribute Vertical Spacing").clicked() {
                 doc.distribute_selection(&state.selected_ids, false);
             }
         });
 
         // Layer Arrange & Grouping Toolbar
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);
+            ui.spacing_mut().button_padding = egui::vec2(5.0, 3.0);
             if ui.small_button("▲").on_hover_text("Bring Forward (])").clicked() {
                 doc.bring_forward(&state.selected_ids);
             }
@@ -184,7 +190,7 @@ pub fn render_inspector(
         ui.add_space(8.0);
         ui.separator();
 
-        // 2. Transform & Dimensions
+        // 2. Transform & Dimensions (Figma 2-Column Grid)
         let first_id = state.selected_ids[0];
         if let Some(node) = doc.find_node_mut(first_id) {
             ui.label(RichText::new("TRANSFORM").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
@@ -192,61 +198,37 @@ pub fn render_inspector(
 
             // Layer Name
             ui.horizontal(|ui| {
-                ui.label("Name");
+                ui.label(RichText::new("Layer").size(11.5).color(Color32::from_rgb(148, 163, 184)));
                 ui.text_edit_singleline(&mut node.name);
             });
+            ui.add_space(4.0);
 
-            // Position (X, Y)
-            ui.horizontal(|ui| {
-                ui.label("X");
-                ui.add(DragValue::new(&mut node.rect.x).speed(1.0));
-                ui.add_space(8.0);
-                ui.label("Y");
-                ui.add(DragValue::new(&mut node.rect.y).speed(1.0));
+            // 2-Column Transform Grid
+            ui.columns(2, |cols| {
+                cols[0].add(DragValue::new(&mut node.rect.x).speed(1.0).prefix("X "));
+                cols[1].add(DragValue::new(&mut node.rect.y).speed(1.0).prefix("Y "));
             });
-
-            // Size (W, H)
-            ui.horizontal(|ui| {
-                ui.label("W");
-                ui.add(DragValue::new(&mut node.rect.width).speed(1.0).range(1.0..=10000.0));
-                ui.add_space(8.0);
-                ui.label("H");
-                ui.add(DragValue::new(&mut node.rect.height).speed(1.0).range(1.0..=10000.0));
+            ui.add_space(2.0);
+            ui.columns(2, |cols| {
+                cols[0].add(DragValue::new(&mut node.rect.width).speed(1.0).range(1.0..=10000.0).prefix("W "));
+                cols[1].add(DragValue::new(&mut node.rect.height).speed(1.0).range(1.0..=10000.0).prefix("H "));
             });
-
-            // Rotation
-            ui.horizontal(|ui| {
-                ui.label("Angle");
+            ui.add_space(2.0);
+            ui.columns(2, |cols| {
                 let mut deg = node.rotation.to_degrees();
-                if ui.add(DragValue::new(&mut deg).speed(1.0).range(-360.0..=360.0).suffix("°")).changed() {
+                if cols[0].add(DragValue::new(&mut deg).speed(1.0).range(-360.0..=360.0).prefix("∡ ").suffix("°")).changed() {
                     node.rotation = deg.to_radians();
                 }
+                let mut r = node.corner_radius.top_left;
+                if cols[1].add(DragValue::new(&mut r).speed(1.0).range(0.0..=500.0).prefix("╭ ")).changed() {
+                    node.corner_radius = sigma_core::CornerRadius::uniform(r);
+                }
             });
-
-            // Corner Radius (if rect or frame)
-            if node.kind == NodeKind::Rectangle || node.kind == NodeKind::Frame {
-                ui.horizontal(|ui| {
-                    ui.label("Radius");
-                    let mut r = node.corner_radius.top_left;
-                    if ui.add(DragValue::new(&mut r).speed(1.0).range(0.0..=500.0)).changed() {
-                        node.corner_radius = sigma_core::CornerRadius::uniform(r);
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Corners");
-                    ui.add(DragValue::new(&mut node.corner_radius.top_left).speed(1.0).range(0.0..=500.0).prefix("TL: "));
-                    ui.add(DragValue::new(&mut node.corner_radius.top_right).speed(1.0).range(0.0..=500.0).prefix("TR: "));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("       ");
-                    ui.add(DragValue::new(&mut node.corner_radius.bottom_left).speed(1.0).range(0.0..=500.0).prefix("BL: "));
-                    ui.add(DragValue::new(&mut node.corner_radius.bottom_right).speed(1.0).range(0.0..=500.0).prefix("BR: "));
-                });
-            }
+            ui.add_space(4.0);
 
             // Opacity
             ui.horizontal(|ui| {
-                ui.label("Opacity");
+                ui.label(RichText::new("Opacity").size(11.5).color(Color32::from_rgb(148, 163, 184)));
                 ui.add(Slider::new(&mut node.opacity, 0.0..=1.0).show_value(true));
             });
 
@@ -397,46 +379,91 @@ pub fn render_inspector(
                 });
             }
 
-            // 4. Auto Layout (Figma Pro feature)
-            if node.kind == NodeKind::Frame {
-                ui.add_space(8.0);
-                ui.separator();
+            // 4. Auto Layout
+            ui.add_space(8.0);
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("AUTO LAYOUT").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
+                let is_al = node.auto_layout.enabled;
+                let btn_text = if is_al { "− Remove" } else { "+ Auto layout (⇧A)" };
+                let btn = egui::Button::new(
+                    RichText::new(btn_text)
+                        .size(10.5)
+                        .strong()
+                        .color(if is_al {
+                            Color32::from_rgb(239, 68, 68)
+                        } else {
+                            Color32::from_rgb(56, 189, 248)
+                        }),
+                )
+                .fill(Color32::from_rgb(28, 28, 34))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(46, 46, 54)))
+                .corner_radius(egui::CornerRadius::same(4));
+
+                if ui.add(btn).clicked() {
+                    node.auto_layout.enabled = !node.auto_layout.enabled;
+                    if node.auto_layout.enabled {
+                        node.kind = NodeKind::Frame;
+                        node.apply_auto_layout();
+                    }
+                }
+            });
+
+            if node.auto_layout.enabled {
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("AUTO LAYOUT").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
-                    ui.checkbox(&mut node.auto_layout.enabled, "");
+                    ui.label(RichText::new("Direction").size(11.0).color(Color32::from_rgb(148, 163, 184)));
+                    let is_h = node.auto_layout.direction == sigma_core::LayoutDirection::Horizontal;
+                    let h_btn = egui::Button::new(RichText::new("→ Horizontal").size(11.0).color(if is_h { Color32::WHITE } else { Color32::from_rgb(148, 163, 184) }))
+                        .fill(if is_h { Color32::from_rgb(39, 39, 44) } else { Color32::TRANSPARENT })
+                        .corner_radius(egui::CornerRadius::same(4));
+                    if ui.add(h_btn).clicked() {
+                        node.auto_layout.direction = sigma_core::LayoutDirection::Horizontal;
+                        node.apply_auto_layout();
+                    }
+
+                    let is_v = node.auto_layout.direction == sigma_core::LayoutDirection::Vertical;
+                    let v_btn = egui::Button::new(RichText::new("↓ Vertical").size(11.0).color(if is_v { Color32::WHITE } else { Color32::from_rgb(148, 163, 184) }))
+                        .fill(if is_v { Color32::from_rgb(39, 39, 44) } else { Color32::TRANSPARENT })
+                        .corner_radius(egui::CornerRadius::same(4));
+                    if ui.add(v_btn).clicked() {
+                        node.auto_layout.direction = sigma_core::LayoutDirection::Vertical;
+                        node.apply_auto_layout();
+                    }
                 });
 
-                if node.auto_layout.enabled {
-                    ui.horizontal(|ui| {
-                        ui.label("Direction");
-                        let is_h = node.auto_layout.direction == sigma_core::LayoutDirection::Horizontal;
-                        if ui.selectable_label(is_h, "→ Horizontal").clicked() {
-                            node.auto_layout.direction = sigma_core::LayoutDirection::Horizontal;
-                            node.apply_auto_layout();
-                        }
-                        let is_v = node.auto_layout.direction == sigma_core::LayoutDirection::Vertical;
-                        if ui.selectable_label(is_v, "↓ Vertical").clicked() {
-                            node.auto_layout.direction = sigma_core::LayoutDirection::Vertical;
-                            node.apply_auto_layout();
-                        }
-                    });
+                ui.add_space(2.0);
+                ui.columns(2, |cols| {
+                    if cols[0].add(DragValue::new(&mut node.auto_layout.gap).speed(1.0).range(0.0..=200.0).prefix("Gap ").suffix("px")).changed() {
+                        node.apply_auto_layout();
+                    }
+                    let mut p = node.auto_layout.padding.top;
+                    if cols[1].add(DragValue::new(&mut p).speed(1.0).range(0.0..=200.0).prefix("Pad ").suffix("px")).changed() {
+                        node.auto_layout.padding = sigma_core::Padding::all(p);
+                        node.apply_auto_layout();
+                    }
+                });
 
-                    ui.horizontal(|ui| {
-                        ui.label("Gap");
-                        if ui.add(DragValue::new(&mut node.auto_layout.gap).speed(1.0).range(0.0..=200.0)).changed() {
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Align").size(11.0).color(Color32::from_rgb(148, 163, 184)));
+                    let aligns = [
+                        ("Start", sigma_core::LayoutAlign::Start),
+                        ("Center", sigma_core::LayoutAlign::Center),
+                        ("End", sigma_core::LayoutAlign::End),
+                        ("Between", sigma_core::LayoutAlign::SpaceBetween),
+                    ];
+                    for (lbl, al) in aligns {
+                        let is_sel = node.auto_layout.main_axis_align == al;
+                        let btn = egui::Button::new(RichText::new(lbl).size(10.5).color(if is_sel { Color32::WHITE } else { Color32::from_rgb(148, 163, 184) }))
+                            .fill(if is_sel { Color32::from_rgb(39, 39, 44) } else { Color32::TRANSPARENT })
+                            .corner_radius(egui::CornerRadius::same(3));
+                        if ui.add(btn).clicked() {
+                            node.auto_layout.main_axis_align = al;
                             node.apply_auto_layout();
                         }
-                    });
-
-                    ui.horizontal(|ui| {
-                        ui.label("Padding");
-                        let mut p = node.auto_layout.padding.top;
-                        if ui.add(DragValue::new(&mut p).speed(1.0).range(0.0..=200.0)).changed() {
-                            node.auto_layout.padding = sigma_core::Padding::all(p);
-                            node.apply_auto_layout();
-                        }
-                    });
-                }
+                    }
+                });
             }
 
             // 5. FILL SECTION & COLOR SWATCHES

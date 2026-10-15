@@ -103,7 +103,7 @@ impl eframe::App for SigmaApp {
         // 5. Right Panel (Design Inspector) - Hidden during Presentation Mode
         if !self.canvas_state.is_presenting {
             egui::Panel::right("right_inspector")
-                .exact_size(260.0)
+                .exact_size(290.0)
                 .resizable(false)
                 .show(ui, |ui| {
                     render_inspector(
@@ -468,19 +468,59 @@ impl SigmaApp {
                 self.canvas_state.show_shortcuts_modal = !self.canvas_state.show_shortcuts_modal;
             }
 
+            let mouse_or_center = ctx
+                .input(|i| i.pointer.hover_pos())
+                .unwrap_or_else(|| ctx.input(|i| i.viewport_rect().center()));
+            let vp = ctx.input(|i| i.viewport_rect());
+
+            // Auto Layout (Shift+A)
+            if i.modifiers.shift && i.key_pressed(Key::A) && !i.modifiers.command && !i.modifiers.ctrl {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.history.push_state(&self.doc);
+                    let mut handled = false;
+                    if self.canvas_state.selected_ids.len() == 1 {
+                        let id = self.canvas_state.selected_ids[0];
+                        if let Some(node) = self.doc.find_node_mut(id) {
+                            if node.kind == sigma_core::NodeKind::Frame {
+                                node.auto_layout.enabled = !node.auto_layout.enabled;
+                                node.apply_auto_layout();
+                                self.network.send_doc_update(&self.doc);
+                                handled = true;
+                            }
+                        }
+                    }
+                    if !handled {
+                        if let Some(frame_id) = self.doc.frame_selection(&self.canvas_state.selected_ids) {
+                            if let Some(frame) = self.doc.find_node_mut(frame_id) {
+                                frame.name = "Auto Layout".to_string();
+                                frame.auto_layout.enabled = true;
+                                frame.auto_layout.direction = sigma_core::LayoutDirection::Vertical;
+                                frame.auto_layout.gap = 12.0;
+                                frame.auto_layout.padding = sigma_core::Padding::all(16.0);
+                                frame.apply_auto_layout();
+                            }
+                            self.canvas_state.selected_ids = vec![frame_id];
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                            self.network.send_doc_update(&self.doc);
+                        }
+                    }
+                }
+            }
+
             // Zoom 100% (Cmd+0)
             if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Num0) {
-                self.canvas_state.zoom = 1.0;
+                let factor = 1.0 / self.canvas_state.zoom;
+                self.canvas_state.zoom_at_point(factor, mouse_or_center, vp);
             }
 
             // Zoom In (Cmd+= / Cmd++)
             if (i.modifiers.command || i.modifiers.ctrl) && (i.key_pressed(Key::Equals) || i.key_pressed(Key::Plus)) {
-                self.canvas_state.zoom = (self.canvas_state.zoom * 1.2).min(32.0);
+                self.canvas_state.zoom_at_point(1.2, mouse_or_center, vp);
             }
 
             // Zoom Out (Cmd+-)
             if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Minus) {
-                self.canvas_state.zoom = (self.canvas_state.zoom / 1.2).max(0.05);
+                self.canvas_state.zoom_at_point(1.0 / 1.2, mouse_or_center, vp);
             }
 
             // Fit to Screen (Shift+1)

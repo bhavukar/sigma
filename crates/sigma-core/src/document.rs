@@ -16,16 +16,13 @@ pub struct Document {
 
 impl Default for Document {
     fn default() -> Self {
-        let mut doc = Self {
+        Self {
             name: "Untitled Sigma".to_string(),
             nodes: vec![],
             next_id: 1,
             canvas_background: Color::rgba(30, 30, 30, 255),
             spatial_index: SpatialIndex::default(),
-        };
-        doc.load_default_template();
-        doc.rebuild_spatial_index();
-        doc
+        }
     }
 }
 

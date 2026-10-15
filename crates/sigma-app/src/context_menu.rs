@@ -182,6 +182,38 @@ pub fn render_context_menu(
                             action_taken = true;
                         }
 
+                        if render_menu_item(ui, "⚡", "Add Auto Layout", "⇧A") {
+                            history.push_state(doc);
+                            let mut handled = false;
+                            if state.selected_ids.len() == 1 {
+                                let id = state.selected_ids[0];
+                                if let Some(node) = doc.find_node_mut(id) {
+                                    if node.kind == sigma_core::NodeKind::Frame {
+                                        node.auto_layout.enabled = true;
+                                        node.apply_auto_layout();
+                                        network.send_doc_update(doc);
+                                        handled = true;
+                                    }
+                                }
+                            }
+                            if !handled {
+                                if let Some(fid) = doc.frame_selection(&state.selected_ids) {
+                                    if let Some(frame) = doc.find_node_mut(fid) {
+                                        frame.name = "Auto Layout".to_string();
+                                        frame.auto_layout.enabled = true;
+                                        frame.auto_layout.direction = sigma_core::LayoutDirection::Vertical;
+                                        frame.auto_layout.gap = 12.0;
+                                        frame.auto_layout.padding = sigma_core::Padding::all(16.0);
+                                        frame.apply_auto_layout();
+                                    }
+                                    state.selected_ids = vec![fid];
+                                    network.send_selection(&state.selected_ids);
+                                    network.send_doc_update(doc);
+                                }
+                            }
+                            action_taken = true;
+                        }
+
                         if render_menu_item(ui, "🔒", "Lock / Unlock", "⇧⌘L") {
                             history.push_state(doc);
                             doc.toggle_lock_selection(&state.selected_ids);
@@ -269,6 +301,18 @@ pub fn render_context_menu(
 
                         if render_menu_item(ui, "⌨", "Keyboard Shortcuts", "?") {
                             state.show_shortcuts_modal = true;
+                            action_taken = true;
+                        }
+
+                        render_divider(ui);
+
+                        if render_menu_item(ui, "🗑", "Clear Canvas", "") {
+                            history.push_state(doc);
+                            doc.nodes.clear();
+                            doc.rebuild_spatial_index();
+                            state.selected_ids.clear();
+                            network.send_selection(&[]);
+                            network.send_doc_update(doc);
                             action_taken = true;
                         }
                     }

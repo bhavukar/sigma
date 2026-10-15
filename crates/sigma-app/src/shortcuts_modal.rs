@@ -107,6 +107,7 @@ pub fn render_shortcuts_modal(ctx: &egui::Context, state: &mut CanvasState) {
                             ("Group Selection", "⌘ G"),
                             ("Ungroup Selection", "⇧ ⌘ G"),
                             ("Frame Selection", "⌥ ⌘ G"),
+                            ("Auto Layout", "⇧ A"),
                             ("Lock / Unlock Layer", "⇧ ⌘ L"),
                             ("Hide / Show Layer", "⇧ ⌘ H"),
                             ("Nudge 1px / 10px", "Arrows  /  ⇧ + Arrows"),
@@ -115,6 +116,7 @@ pub fn render_shortcuts_modal(ctx: &egui::Context, state: &mut CanvasState) {
                     (
                         "VIEW & PRESENTATION",
                         vec![
+                            ("Measure Spacing / Distance", "⌥ (Hold)"),
                             ("Zoom In", "⌘ +"),
                             ("Zoom Out", "⌘ -"),
                             ("Zoom 100%", "⌘ 0"),

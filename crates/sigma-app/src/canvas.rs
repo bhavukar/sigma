@@ -180,13 +180,10 @@ impl CanvasState {
 
     pub fn zoom_at_point(&mut self, factor: f32, center_screen: Pos2, canvas_rect: EguiRect) {
         let world_before = self.screen_to_world(center_screen, canvas_rect);
-        let old_zoom = self.zoom;
         self.zoom = sigma_core::safe_clamp(self.zoom * factor, 0.05, 32.0);
-        let new_zoom = self.zoom;
-
-        // Keep the world point under the cursor unchanged
-        self.pan.x += world_before.x * (1.0 - old_zoom / new_zoom);
-        self.pan.y += world_before.y * (1.0 - old_zoom / new_zoom);
+        // Mathematically anchor cursor: world_to_screen(world_before) == center_screen
+        self.pan.x = (center_screen.x - canvas_rect.min.x) / self.zoom - world_before.x;
+        self.pan.y = (center_screen.y - canvas_rect.min.y) / self.zoom - world_before.y;
     }
 
     pub fn hit_test_handle(
@@ -327,6 +324,9 @@ pub fn render_canvas(
         }
     }
 
+    // 6b. Render Distance Measurements & Spacing Guides (Alt / Option held, or during drag)
+    render_distance_guides(&painter, state, doc, canvas_rect, ui);
+
     // 7. Render Remote Peers' Selections
     for peer in state.remote_peers.values() {
         if !peer.selected_ids.is_empty() {
@@ -412,10 +412,20 @@ pub fn render_canvas(
 
             ui.scope_builder(egui::UiBuilder::new().max_rect(edit_rect), |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+                ui.visuals_mut().extreme_bg_color = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.hovered.bg_fill = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.active.bg_fill = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
+                ui.visuals_mut().widgets.hovered.bg_stroke = egui::Stroke::NONE;
+                ui.visuals_mut().widgets.active.bg_stroke = egui::Stroke::NONE;
+
                 let edit_resp = ui.add(
                     egui::TextEdit::multiline(&mut text)
                         .font(egui::FontId::proportional(font_size))
-                        .desired_width(edit_rect.width()),
+                        .desired_width(edit_rect.width())
+                        .frame(egui::Frame::NONE)
+                        .margin(egui::Margin::ZERO),
                 );
 
                 if edit_resp.changed() {
@@ -856,4 +866,142 @@ fn draw_node(
             painter.add(egui::Shape::convex_polygon(vec![top, right, left], fill_color, stroke));
         }
     }
+}
+
+fn render_distance_guides(
+    painter: &egui::Painter,
+    state: &CanvasState,
+    doc: &Document,
+    canvas_rect: EguiRect,
+    ui: &Ui,
+) {
+    if state.selected_ids.is_empty() {
+        return;
+    }
+    let is_alt = ui.input(|i| i.modifiers.alt);
+    if !is_alt && state.drag_start_pos.is_none() {
+        return;
+    }
+
+    let Some(selected_bbox) = doc.selection_bounding_box(&state.selected_ids) else {
+        return;
+    };
+
+    let mouse_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(canvas_rect.center());
+    let mouse_world = state.screen_to_world(mouse_pos, canvas_rect);
+
+    let hovered_node = doc.hit_test(mouse_world).and_then(|id| {
+        if state.selected_ids.contains(&id) {
+            None
+        } else {
+            doc.find_node(id)
+        }
+    });
+
+    let target_node = hovered_node
+        .or_else(|| {
+            let first_id = state.selected_ids[0];
+            doc.find_parent_frame_id(first_id).and_then(|fid| doc.find_node(fid))
+        })
+        .or_else(|| {
+            doc.nodes
+                .iter()
+                .filter(|n| !state.selected_ids.contains(&n.id) && n.visible)
+                .min_by(|a, b| {
+                    let da = (a.rect.center() - selected_bbox.center()).length();
+                    let db = (b.rect.center() - selected_bbox.center()).length();
+                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+                })
+        });
+
+    let Some(target) = target_node else {
+        return;
+    };
+
+    let s_rect = selected_bbox;
+    let t_rect = target.rect;
+
+    let s_screen = state.world_rect_to_screen(s_rect, canvas_rect);
+    let t_screen = state.world_rect_to_screen(t_rect, canvas_rect);
+
+    let pink = Color32::from_rgb(244, 63, 94);
+    let pink_stroke = EguiStroke::new(1.0, pink);
+
+    // Outline target with distinct pink stroke
+    painter.rect_stroke(t_screen, 0.0, pink_stroke, egui::StrokeKind::Outside);
+
+    // 1. Horizontal spacing
+    if t_rect.max().x <= s_rect.min().x {
+        let gap = s_rect.min().x - t_rect.max().x;
+        let y = s_screen.center().y;
+        draw_measurement_line(painter, Pos2::new(t_screen.max.x, y), Pos2::new(s_screen.min.x, y), gap, true, pink);
+    } else if s_rect.max().x <= t_rect.min().x {
+        let gap = t_rect.min().x - s_rect.max().x;
+        let y = s_screen.center().y;
+        draw_measurement_line(painter, Pos2::new(s_screen.max.x, y), Pos2::new(t_screen.min.x, y), gap, true, pink);
+    }
+
+    // 2. Vertical spacing
+    if t_rect.max().y <= s_rect.min().y {
+        let gap = s_rect.min().y - t_rect.max().y;
+        let x = s_screen.center().x;
+        draw_measurement_line(painter, Pos2::new(x, t_screen.max.y), Pos2::new(x, s_screen.min.y), gap, false, pink);
+    } else if s_rect.max().y <= t_rect.min().y {
+        let gap = t_rect.min().y - s_rect.max().y;
+        let x = s_screen.center().x;
+        draw_measurement_line(painter, Pos2::new(x, s_screen.max.y), Pos2::new(x, t_screen.min.y), gap, false, pink);
+    }
+
+    // 3. Inside containment (e.g. child inside parent frame)
+    if s_rect.min().x >= t_rect.min().x
+        && s_rect.max().x <= t_rect.max().x
+        && s_rect.min().y >= t_rect.min().y
+        && s_rect.max().y <= t_rect.max().y
+    {
+        let d_left = s_rect.min().x - t_rect.min().x;
+        draw_measurement_line(painter, Pos2::new(t_screen.min.x, s_screen.center().y), Pos2::new(s_screen.min.x, s_screen.center().y), d_left, true, pink);
+        let d_right = t_rect.max().x - s_rect.max().x;
+        draw_measurement_line(painter, Pos2::new(s_screen.max.x, s_screen.center().y), Pos2::new(t_screen.max.x, s_screen.center().y), d_right, true, pink);
+        let d_top = s_rect.min().y - t_rect.min().y;
+        draw_measurement_line(painter, Pos2::new(s_screen.center().x, t_screen.min.y), Pos2::new(s_screen.center().x, s_screen.min.y), d_top, false, pink);
+        let d_bottom = t_rect.max().y - s_rect.max().y;
+        draw_measurement_line(painter, Pos2::new(s_screen.center().x, s_screen.max.y), Pos2::new(s_screen.center().x, t_screen.max.y), d_bottom, false, pink);
+    }
+}
+
+fn draw_measurement_line(
+    painter: &egui::Painter,
+    p1: Pos2,
+    p2: Pos2,
+    dist: f32,
+    is_horizontal: bool,
+    color: Color32,
+) {
+    if dist.abs() < 0.5 {
+        return;
+    }
+    let stroke = EguiStroke::new(1.0, color);
+    painter.line_segment([p1, p2], stroke);
+
+    let tick = 4.0;
+    if is_horizontal {
+        painter.line_segment([Pos2::new(p1.x, p1.y - tick), Pos2::new(p1.x, p1.y + tick)], stroke);
+        painter.line_segment([Pos2::new(p2.x, p2.y - tick), Pos2::new(p2.x, p2.y + tick)], stroke);
+    } else {
+        painter.line_segment([Pos2::new(p1.x - tick, p1.y), Pos2::new(p1.x + tick, p1.y)], stroke);
+        painter.line_segment([Pos2::new(p2.x - tick, p2.y), Pos2::new(p2.x + tick, p2.y)], stroke);
+    }
+
+    let mid = Pos2::new((p1.x + p2.x) * 0.5, (p1.y + p2.y) * 0.5);
+    let text = format!("{:.0}", dist.abs());
+    let badge_w = (text.len() as f32 * 6.5 + 8.0).max(18.0);
+    let badge_rect = EguiRect::from_center_size(mid, EguiVec2::new(badge_w, 14.0));
+    painter.rect_filled(badge_rect, 3.0, color);
+    painter.text(
+        mid,
+        egui::Align2::CENTER_CENTER,
+        text,
+        egui::FontId::proportional(9.5),
+        Color32::WHITE,
+    );
 }
