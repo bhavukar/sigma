@@ -47,6 +47,21 @@ pub struct CanvasState {
     pub editing_text_id: Option<NodeId>,
     pub editing_text_buffer: String,
     pub show_debugger: bool,
+    // Better Auth state
+    pub auth_user_name: String,
+    pub auth_user_email: String,
+    pub auth_role: String,
+    pub auth_is_signed_in: bool,
+    pub auth_token: String,
+    pub show_auth_modal: bool,
+    pub auth_modal_tab: usize, // 0: Sign In, 1: Sign Up, 2: Guest
+    pub auth_password_input: String,
+    pub auth_name_input: String,
+    pub auth_email_input: String,
+    pub auth_status_msg: Option<String>,
+    // Frame Presets state
+    pub frame_preset_category: String,
+    pub frame_preset_search: String,
 }
 
 impl Default for CanvasState {
@@ -70,6 +85,19 @@ impl Default for CanvasState {
             editing_text_id: None,
             editing_text_buffer: String::new(),
             show_debugger: false,
+            auth_user_name: "Designer".to_string(),
+            auth_user_email: String::new(),
+            auth_role: "Guest Designer".to_string(),
+            auth_is_signed_in: false,
+            auth_token: String::new(),
+            show_auth_modal: false,
+            auth_modal_tab: 0,
+            auth_password_input: String::new(),
+            auth_name_input: String::new(),
+            auth_email_input: String::new(),
+            auth_status_msg: None,
+            frame_preset_category: "All".to_string(),
+            frame_preset_search: String::new(),
         }
     }
 }

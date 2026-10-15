@@ -19,12 +19,23 @@ impl Default for SigmaApp {
     fn default() -> Self {
         let doc = Document::default();
         let room_id = get_initial_room();
-        let (user_name, user_color) = get_user_profile();
+        let mut canvas_state = CanvasState::default();
+        let (mut user_name, user_color) = get_user_profile();
+
+        if let Some((name, email, role, token)) = crate::auth::load_session_from_local_storage() {
+            canvas_state.auth_is_signed_in = true;
+            canvas_state.auth_user_name = name.clone();
+            canvas_state.auth_user_email = email;
+            canvas_state.auth_role = role;
+            canvas_state.auth_token = token;
+            user_name = name;
+        }
+
         let network = NetworkManager::new(&room_id, &user_name, user_color);
 
         Self {
             doc,
-            canvas_state: CanvasState::default(),
+            canvas_state,
             history: History::default(),
             network,
             mouse_pos_world: Vec2::ZERO,
@@ -83,7 +94,13 @@ impl eframe::App for SigmaApp {
             .exact_size(260.0)
             .resizable(false)
             .show(ui, |ui| {
-                render_inspector(ui, &mut self.doc, &mut self.canvas_state);
+                render_inspector(
+                    ui,
+                    &mut self.doc,
+                    &mut self.canvas_state,
+                    &mut self.history,
+                    &self.network,
+                );
             });
 
         // 6. Central Panel (The Infinite Design Canvas)
@@ -96,6 +113,9 @@ impl eframe::App for SigmaApp {
                 self.handle_canvas_input(ui, &response, canvas_rect);
                 render_canvas(ui, &mut self.doc, &mut self.canvas_state, canvas_rect);
             });
+
+        // 7. Better Auth Modal Dialog
+        crate::auth::render_auth_modal(&ctx, &mut self.canvas_state, &mut self.network);
 
         // Request regular repaints when peers are active
         if !self.canvas_state.remote_peers.is_empty() {

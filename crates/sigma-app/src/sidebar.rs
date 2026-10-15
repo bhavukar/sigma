@@ -67,7 +67,7 @@ pub fn render_sidebar(
         // Layer Action Bar (Reorder, Group, Duplicate, Delete)
         if !state.selected_ids.is_empty() {
             ui.horizontal(|ui| {
-                ui.add_space(4.0);
+                ui.add_space(2.0);
                 if ui.small_button("⤒").on_hover_text("Bring to Front (Shift+])").clicked() {
                     doc.bring_to_front(&state.selected_ids);
                     network.send_doc_update(doc);
@@ -96,6 +96,13 @@ pub fn render_sidebar(
                         }
                     }
                 } else if state.selected_ids.len() == 1 {
+                    let first_id = state.selected_ids[0];
+                    if doc.find_parent_frame_id(first_id).is_some() {
+                        if ui.small_button("↖").on_hover_text("Extract out of Frame").clicked() {
+                            doc.extract_from_parent(first_id);
+                            network.send_doc_update(doc);
+                        }
+                    }
                     if ui.small_button("⊟").on_hover_text("Ungroup (Cmd+Shift+G)").clicked() {
                         let unpacked = doc.ungroup_selection(&state.selected_ids);
                         if !unpacked.is_empty() {
@@ -134,6 +141,9 @@ pub fn render_sidebar(
             let mut action_toggle_vis = None;
             let mut action_toggle_lock = None;
             let mut action_rename_commit = None;
+            let mut action_move_up = None;
+            let mut action_move_down = None;
+            let mut action_extract_parent = None;
 
             // Iterate in reverse render order (top-most layer on top of list)
             for node in doc.nodes.iter().rev() {
@@ -146,6 +156,9 @@ pub fn render_sidebar(
                     &mut action_toggle_vis,
                     &mut action_toggle_lock,
                     &mut action_rename_commit,
+                    &mut action_move_up,
+                    &mut action_move_down,
+                    &mut action_extract_parent,
                 );
             }
 
@@ -160,6 +173,21 @@ pub fn render_sidebar(
                     state.selected_ids = vec![id];
                 }
                 network.send_selection(&state.selected_ids);
+            }
+
+            if let Some(id) = action_move_up {
+                doc.move_node_up(id);
+                network.send_doc_update(doc);
+            }
+
+            if let Some(id) = action_move_down {
+                doc.move_node_down(id);
+                network.send_doc_update(doc);
+            }
+
+            if let Some(id) = action_extract_parent {
+                doc.extract_from_parent(id);
+                network.send_doc_update(doc);
             }
 
             if let Some(id) = action_toggle_vis {
@@ -206,6 +234,9 @@ fn render_node_row(
     action_toggle_vis: &mut Option<NodeId>,
     action_toggle_lock: &mut Option<NodeId>,
     action_rename_commit: &mut Option<(NodeId, String)>,
+    action_move_up: &mut Option<NodeId>,
+    action_move_down: &mut Option<NodeId>,
+    action_extract_parent: &mut Option<NodeId>,
 ) {
     let is_selected = state.selected_ids.contains(&node.id);
     let has_children = !node.children.is_empty();
@@ -225,7 +256,7 @@ fn render_node_row(
     ui.horizontal(|ui| {
         // Indentation for nested children
         if depth > 0 {
-            ui.add_space((depth as f32) * 14.0);
+            ui.add_space((depth as f32) * 12.0);
         }
 
         // Expand / Collapse disclosure triangle for frames with children
@@ -257,7 +288,7 @@ fn render_node_row(
         if state.renaming_layer_id == Some(node.id) {
             let edit_resp = ui.add(
                 egui::TextEdit::singleline(&mut state.renaming_text)
-                    .desired_width(110.0),
+                    .desired_width(90.0),
             );
             if edit_resp.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 *action_rename_commit = Some((node.id, state.renaming_text.clone()));
@@ -288,8 +319,19 @@ fn render_node_row(
             }
         }
 
-        // Right-aligned status buttons: Visibility & Lock
+        // Right-aligned status buttons: Up/Down Reorder, Extract, Lock, Visibility
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // Visibility toggle
+            let vis_icon = if node.visible { "👁" } else { "⊘" };
+            let vis_color = if node.visible {
+                Color32::from_rgb(140, 140, 150)
+            } else {
+                Color32::from_rgb(255, 90, 90)
+            };
+            if ui.add(egui::Button::new(RichText::new(vis_icon).size(10.0).color(vis_color)).frame(false)).clicked() {
+                *action_toggle_vis = Some(node.id);
+            }
+
             // Lock toggle
             let lock_icon = if node.locked { "🔒" } else { "🔓" };
             let lock_color = if node.locked {
@@ -301,15 +343,30 @@ fn render_node_row(
                 *action_toggle_lock = Some(node.id);
             }
 
-            // Visibility toggle
-            let vis_icon = if node.visible { "👁" } else { "⊘" };
-            let vis_color = if node.visible {
-                Color32::from_rgb(140, 140, 150)
-            } else {
-                Color32::from_rgb(255, 90, 90)
-            };
-            if ui.add(egui::Button::new(RichText::new(vis_icon).size(10.0).color(vis_color)).frame(false)).clicked() {
-                *action_toggle_vis = Some(node.id);
+            // Move Down (backward)
+            if ui.add(egui::Button::new(RichText::new("▼").size(9.0).color(Color32::from_rgb(120, 120, 130))).frame(false))
+                .on_hover_text("Move Down in layer order ([)")
+                .clicked()
+            {
+                *action_move_down = Some(node.id);
+            }
+
+            // Move Up (forward)
+            if ui.add(egui::Button::new(RichText::new("▲").size(9.0).color(Color32::from_rgb(120, 120, 130))).frame(false))
+                .on_hover_text("Move Up in layer order (])")
+                .clicked()
+            {
+                *action_move_up = Some(node.id);
+            }
+
+            // If nested inside a frame, show extract button
+            if depth > 0 {
+                if ui.add(egui::Button::new(RichText::new("↖").size(9.0).color(Color32::from_rgb(10, 132, 255))).frame(false))
+                    .on_hover_text("Extract out of Frame to Root")
+                    .clicked()
+                {
+                    *action_extract_parent = Some(node.id);
+                }
             }
         });
     });
@@ -326,6 +383,9 @@ fn render_node_row(
                 action_toggle_vis,
                 action_toggle_lock,
                 action_rename_commit,
+                action_move_up,
+                action_move_down,
+                action_extract_parent,
             );
         }
     }

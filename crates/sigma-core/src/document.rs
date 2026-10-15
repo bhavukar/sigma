@@ -271,6 +271,7 @@ impl Document {
     }
 
     pub fn bring_to_front(&mut self, ids: &[NodeId]) {
+        // Reorder root nodes
         let mut moved = Vec::new();
         self.nodes.retain(|n| {
             if ids.contains(&n.id) {
@@ -281,9 +282,26 @@ impl Document {
             }
         });
         self.nodes.extend(moved);
+
+        // Also reorder within each frame's children
+        for parent in &mut self.nodes {
+            if !parent.children.is_empty() {
+                let mut moved_ch = Vec::new();
+                parent.children.retain(|c| {
+                    if ids.contains(&c.id) {
+                        moved_ch.push(c.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+                parent.children.extend(moved_ch);
+            }
+        }
     }
 
     pub fn send_to_back(&mut self, ids: &[NodeId]) {
+        // Reorder root nodes
         let mut moved = Vec::new();
         self.nodes.retain(|n| {
             if ids.contains(&n.id) {
@@ -295,28 +313,147 @@ impl Document {
         });
         moved.extend(self.nodes.drain(..));
         self.nodes = moved;
+
+        // Also reorder within each frame's children
+        for parent in &mut self.nodes {
+            if !parent.children.is_empty() {
+                let mut moved_ch = Vec::new();
+                parent.children.retain(|c| {
+                    if ids.contains(&c.id) {
+                        moved_ch.push(c.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+                moved_ch.extend(parent.children.drain(..));
+                parent.children = moved_ch;
+            }
+        }
     }
 
     pub fn bring_forward(&mut self, ids: &[NodeId]) {
-        if self.nodes.len() < 2 {
-            return;
+        if self.nodes.len() >= 2 {
+            for i in (0..self.nodes.len() - 1).rev() {
+                if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i + 1].id) {
+                    self.nodes.swap(i, i + 1);
+                }
+            }
         }
-        for i in (0..self.nodes.len() - 1).rev() {
-            if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i + 1].id) {
-                self.nodes.swap(i, i + 1);
+        for parent in &mut self.nodes {
+            if parent.children.len() >= 2 {
+                for i in (0..parent.children.len() - 1).rev() {
+                    if ids.contains(&parent.children[i].id) && !ids.contains(&parent.children[i + 1].id) {
+                        parent.children.swap(i, i + 1);
+                    }
+                }
             }
         }
     }
 
     pub fn send_backward(&mut self, ids: &[NodeId]) {
-        if self.nodes.len() < 2 {
-            return;
-        }
-        for i in 1..self.nodes.len() {
-            if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i - 1].id) {
-                self.nodes.swap(i, i - 1);
+        if self.nodes.len() >= 2 {
+            for i in 1..self.nodes.len() {
+                if ids.contains(&self.nodes[i].id) && !ids.contains(&self.nodes[i - 1].id) {
+                    self.nodes.swap(i, i - 1);
+                }
             }
         }
+        for parent in &mut self.nodes {
+            if parent.children.len() >= 2 {
+                for i in 1..parent.children.len() {
+                    if ids.contains(&parent.children[i].id) && !ids.contains(&parent.children[i - 1].id) {
+                        parent.children.swap(i, i - 1);
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn move_node_up(&mut self, id: NodeId) -> bool {
+        // In render order, moving "up" means towards index len-1 (closer to front/top)
+        if let Some(pos) = self.nodes.iter().position(|n| n.id == id) {
+            if pos + 1 < self.nodes.len() {
+                self.nodes.swap(pos, pos + 1);
+                return true;
+            }
+            return false;
+        }
+        for parent in &mut self.nodes {
+            if let Some(pos) = parent.children.iter().position(|c| c.id == id) {
+                if pos + 1 < parent.children.len() {
+                    parent.children.swap(pos, pos + 1);
+                    return true;
+                }
+                return false;
+            }
+        }
+        false
+    }
+
+    pub fn move_node_down(&mut self, id: NodeId) -> bool {
+        // In render order, moving "down" means towards index 0 (closer to back/bottom)
+        if let Some(pos) = self.nodes.iter().position(|n| n.id == id) {
+            if pos > 0 {
+                self.nodes.swap(pos, pos - 1);
+                return true;
+            }
+            return false;
+        }
+        for parent in &mut self.nodes {
+            if let Some(pos) = parent.children.iter().position(|c| c.id == id) {
+                if pos > 0 {
+                    parent.children.swap(pos, pos - 1);
+                    return true;
+                }
+                return false;
+            }
+        }
+        false
+    }
+
+    pub fn find_parent_frame_id(&self, child_id: NodeId) -> Option<NodeId> {
+        for node in &self.nodes {
+            if node.children.iter().any(|c| c.id == child_id) {
+                return Some(node.id);
+            }
+        }
+        None
+    }
+
+    pub fn extract_from_parent(&mut self, child_id: NodeId) -> bool {
+        for frame in &mut self.nodes {
+            if let Some(pos) = frame.children.iter().position(|c| c.id == child_id) {
+                let mut child = frame.children.remove(pos);
+                child.rect.x += frame.rect.x;
+                child.rect.y += frame.rect.y;
+                self.nodes.push(child);
+                self.rebuild_spatial_index();
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn move_node_into_frame(&mut self, node_id: NodeId, frame_id: NodeId) -> bool {
+        if node_id == frame_id {
+            return false;
+        }
+        let frame_rect = match self.nodes.iter().find(|n| n.id == frame_id && n.kind == NodeKind::Frame) {
+            Some(f) => f.rect,
+            None => return false,
+        };
+
+        if let Some(mut node) = self.remove_node(node_id) {
+            node.rect.x -= frame_rect.x;
+            node.rect.y -= frame_rect.y;
+            if let Some(frame) = self.find_node_mut(frame_id) {
+                frame.children.push(node);
+                self.rebuild_spatial_index();
+                return true;
+            }
+        }
+        false
     }
 
     pub fn group_selection(&mut self, ids: &[NodeId]) -> Option<NodeId> {
@@ -377,7 +514,31 @@ impl Document {
         unpacked_ids
     }
 
-    pub fn add_frame_preset(&mut self, name: &str, width: f32, height: f32, center: Vec2) -> NodeId {
+    pub fn get_next_frame_position(&self, default_center: Vec2, width: f32) -> Vec2 {
+        let root_frames: Vec<&Node> = self.nodes.iter().filter(|n| n.kind == NodeKind::Frame).collect();
+        if root_frames.is_empty() {
+            default_center
+        } else {
+            let max_x = root_frames
+                .iter()
+                .map(|f| f.rect.x + f.rect.width)
+                .fold(f32::NEG_INFINITY, f32::max);
+            let first_y = root_frames
+                .first()
+                .map(|f| f.rect.y + f.rect.height * 0.5)
+                .unwrap_or(default_center.y);
+            Vec2::new(max_x + 80.0 + width * 0.5, first_y)
+        }
+    }
+
+    pub fn add_frame_preset_styled(
+        &mut self,
+        name: &str,
+        width: f32,
+        height: f32,
+        center: Vec2,
+        corner_radius: f32,
+    ) -> NodeId {
         let id = self.alloc_id();
         let rect = Rect {
             x: center.x - width * 0.5,
@@ -386,10 +547,18 @@ impl Document {
             height,
         };
         let mut frame = Node::new_frame(id, name, rect);
-        frame.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        frame.corner_radius = crate::style::CornerRadius::uniform(corner_radius);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::WHITE,
+            opacity: 1.0,
+        }];
         self.spatial_index.insert(id, rect);
         self.nodes.push(frame);
         id
+    }
+
+    pub fn add_frame_preset(&mut self, name: &str, width: f32, height: f32, center: Vec2) -> NodeId {
+        self.add_frame_preset_styled(name, width, height, center, 24.0)
     }
 
     pub fn insert_component(&mut self, component_type: &str, center: Vec2) -> NodeId {

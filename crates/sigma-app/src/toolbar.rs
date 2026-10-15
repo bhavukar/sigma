@@ -44,68 +44,70 @@ pub fn render_toolbar(
         egui::ComboBox::from_id_salt("frame_presets_combo")
             .selected_text("📐 Presets")
             .show_ui(ui, |ui| {
-                ui.label(RichText::new("MOBILE").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
-                if ui.button("iPhone 16 Pro (393 × 852)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("iPhone 16 Pro", 393.0, 852.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
-                }
-                if ui.button("iPhone 16 Pro Max (440 × 956)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("iPhone 16 Pro Max", 440.0, 956.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
-                }
-                if ui.button("Android Large (360 × 800)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 300.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("Android Large", 360.0, 800.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
+                let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 350.0);
+
+                ui.label(RichText::new("PHONES").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                let phone_presets = [
+                    ("iPhone 16 Pro Max", 440.0, 956.0, 48.0),
+                    ("iPhone 16 Pro", 402.0, 874.0, 48.0),
+                    ("iPhone 16 / 15", 393.0, 852.0, 48.0),
+                    ("iPhone SE", 320.0, 568.0, 20.0),
+                    ("Pixel 9 Pro", 412.0, 924.0, 40.0),
+                    ("Android Large", 412.0, 915.0, 24.0),
+                ];
+                for (name, w, h, r) in phone_presets {
+                    if ui.button(format!("📱 {} ({}×{})", name, w as i32, h as i32)).clicked() {
+                        let pos = doc.get_next_frame_position(center, w);
+                        let id = doc.add_frame_preset_styled(name, w, h, pos, r);
+                        state.selected_ids = vec![id];
+                        state.active_tool = ActiveTool::Select;
+                        history.push_state(doc);
+                        network.send_selection(&state.selected_ids);
+                        network.send_doc_update(doc);
+                    }
                 }
 
                 ui.separator();
                 ui.label(RichText::new("DESKTOP & TABLET").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
-                if ui.button("MacBook Pro 16\" (1728 × 1117)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("MacBook Pro 16\"", 1728.0, 1117.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
-                }
-                if ui.button("Desktop HD (1440 × 1024)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("Desktop HD", 1440.0, 1024.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
-                }
-                if ui.button("iPad Pro 11\" (834 × 1194)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("iPad Pro 11\"", 834.0, 1194.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
+                let desk_presets = [
+                    ("MacBook Pro 16\"", 1728.0, 1117.0, 16.0),
+                    ("MacBook Pro 14\"", 1512.0, 982.0, 16.0),
+                    ("MacBook Air 13\"", 1280.0, 832.0, 16.0),
+                    ("Desktop HD 1440", 1440.0, 1024.0, 8.0),
+                    ("iPad Pro 13\" M4", 1032.0, 1376.0, 24.0),
+                    ("iPad Pro 11\" M4", 834.0, 1210.0, 24.0),
+                ];
+                for (name, w, h, r) in desk_presets {
+                    if ui.button(format!("💻 {} ({}×{})", name, w as i32, h as i32)).clicked() {
+                        let pos = doc.get_next_frame_position(center, w);
+                        let id = doc.add_frame_preset_styled(name, w, h, pos, r);
+                        state.selected_ids = vec![id];
+                        state.active_tool = ActiveTool::Select;
+                        history.push_state(doc);
+                        network.send_selection(&state.selected_ids);
+                        network.send_doc_update(doc);
+                    }
                 }
 
                 ui.separator();
-                ui.label(RichText::new("SOCIAL").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
-                if ui.button("Instagram Post (1080 × 1080)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("Instagram Post", 1080.0, 1080.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
-                }
-                if ui.button("Dribbble Shot (1600 × 1200)").clicked() {
-                    let center = sigma_core::Vec2::new(-state.pan.x + 500.0, -state.pan.y + 400.0);
-                    let id = doc.add_frame_preset("Dribbble Shot", 1600.0, 1200.0, center);
-                    state.selected_ids = vec![id];
-                    history.push_state(doc);
-                    network.send_doc_update(doc);
+                ui.label(RichText::new("SLIDES & SOCIAL").strong().size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                let media_presets = [
+                    ("Slide 16:9", 1920.0, 1080.0, 0.0),
+                    ("Instagram Post", 1080.0, 1080.0, 0.0),
+                    ("Instagram Story", 1080.0, 1920.0, 0.0),
+                    ("X / Twitter Post", 1200.0, 675.0, 0.0),
+                    ("YouTube Thumbnail", 1280.0, 720.0, 0.0),
+                ];
+                for (name, w, h, r) in media_presets {
+                    if ui.button(format!("🌐 {} ({}×{})", name, w as i32, h as i32)).clicked() {
+                        let pos = doc.get_next_frame_position(center, w);
+                        let id = doc.add_frame_preset_styled(name, w, h, pos, r);
+                        state.selected_ids = vec![id];
+                        state.active_tool = ActiveTool::Select;
+                        history.push_state(doc);
+                        network.send_selection(&state.selected_ids);
+                        network.send_doc_update(doc);
+                    }
                 }
             });
 
@@ -170,6 +172,40 @@ pub fn render_toolbar(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(8.0);
 
+            // Better Auth: Sign In or User Profile Button
+            if state.auth_is_signed_in {
+                let user_pill = egui::Button::new(
+                    RichText::new(format!("👤 {} ({})", state.auth_user_name, state.auth_role))
+                        .size(11.0)
+                        .strong()
+                        .color(Color32::from_rgb(10, 132, 255)),
+                );
+                if ui
+                    .add(user_pill)
+                    .on_hover_text("Better Auth: Verified Session. Click to manage profile or sign out.")
+                    .clicked()
+                {
+                    state.show_auth_modal = true;
+                }
+            } else {
+                let signin_btn = egui::Button::new(
+                    RichText::new("🔐 Sign In")
+                        .size(11.5)
+                        .strong()
+                        .color(Color32::WHITE),
+                )
+                .fill(Color32::from_rgb(10, 132, 255));
+                if ui
+                    .add(signin_btn)
+                    .on_hover_text("Sign In with Better Auth / Email / Google / GitHub")
+                    .clicked()
+                {
+                    state.show_auth_modal = true;
+                }
+            }
+
+            ui.separator();
+
             // Share Room Button
             let share_url = format!(
                 "https://sigma-sync.bhavuk-arora03.workers.dev/?room={}",
@@ -217,7 +253,9 @@ pub fn render_toolbar(
                 network.user_color.g,
                 network.user_color.b,
             );
-            render_avatar_bubble(ui, &network.user_name, local_c, true);
+            if render_avatar_bubble(ui, &network.user_name, local_c, true) {
+                state.show_auth_modal = true;
+            }
 
             // 2. Remote peer avatar bubbles
             for peer in state.remote_peers.values() {
@@ -267,9 +305,9 @@ pub fn render_toolbar(
     });
 }
 
-fn render_avatar_bubble(ui: &mut Ui, name: &str, color: Color32, is_self: bool) {
+fn render_avatar_bubble(ui: &mut Ui, name: &str, color: Color32, is_self: bool) -> bool {
     let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
-    let (rect, resp) = ui.allocate_exact_size(EguiVec2::splat(24.0), egui::Sense::hover());
+    let (rect, resp) = ui.allocate_exact_size(EguiVec2::splat(24.0), egui::Sense::click());
     let painter = ui.painter_at(rect);
     let center = rect.center();
 
@@ -283,9 +321,9 @@ fn render_avatar_bubble(ui: &mut Ui, name: &str, color: Color32, is_self: bool) 
     );
 
     let hover_text = if is_self {
-        format!("You ({})", name)
+        format!("You ({}) - Click to manage Better Auth account", name)
     } else {
         name.to_string()
     };
-    resp.on_hover_text(hover_text);
+    resp.on_hover_text(hover_text).clicked()
 }

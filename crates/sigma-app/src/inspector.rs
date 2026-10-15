@@ -1,93 +1,79 @@
-use crate::canvas::CanvasState;
+use crate::canvas::{ActiveTool, CanvasState};
+use crate::network::NetworkManager;
 use egui::{Color32, DragValue, RichText, ScrollArea, Slider, Stroke as EguiStroke, Ui, Vec2 as EguiVec2};
 use sigma_core::{
-    export_node_to_svg, export_to_css, AlignmentMode, Color, Document, Effect, NodeKind, Stroke,
+    export_node_to_svg, export_to_css, AlignmentMode, Color, Document, Effect, History, NodeKind, Stroke,
     StrokeAlign, StrokeStyle, TextAlign, TextCase, TextDecoration,
 };
 
-pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState) {
+struct FramePresetDef {
+    category: &'static str,
+    name: &'static str,
+    width: f32,
+    height: f32,
+    radius: f32,
+    icon: &'static str,
+}
+
+const ALL_FRAME_PRESETS: &[FramePresetDef] = &[
+    // Phones
+    FramePresetDef { category: "Phone", name: "iPhone 16 Pro Max", width: 440.0, height: 956.0, radius: 48.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "iPhone 16 Pro", width: 402.0, height: 874.0, radius: 48.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "iPhone 16 / 15", width: 393.0, height: 852.0, radius: 48.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "iPhone 16 Plus", width: 430.0, height: 932.0, radius: 48.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "iPhone 14 / 13 Pro", width: 390.0, height: 844.0, radius: 44.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "iPhone SE (3rd gen)", width: 320.0, height: 568.0, radius: 20.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "Google Pixel 9 Pro", width: 412.0, height: 924.0, radius: 40.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "Google Pixel 8", width: 412.0, height: 892.0, radius: 36.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "Android Compact", width: 360.0, height: 800.0, radius: 20.0, icon: "📱" },
+    FramePresetDef { category: "Phone", name: "Android Large", width: 412.0, height: 915.0, radius: 24.0, icon: "📱" },
+    // Tablets
+    FramePresetDef { category: "Tablet", name: "iPad Pro 13\" (M4)", width: 1032.0, height: 1376.0, radius: 24.0, icon: "📱" },
+    FramePresetDef { category: "Tablet", name: "iPad Pro 11\" (M4)", width: 834.0, height: 1210.0, radius: 24.0, icon: "📱" },
+    FramePresetDef { category: "Tablet", name: "iPad Air 11\"", width: 820.0, height: 1180.0, radius: 20.0, icon: "📱" },
+    FramePresetDef { category: "Tablet", name: "iPad Mini", width: 744.0, height: 1133.0, radius: 18.0, icon: "📱" },
+    FramePresetDef { category: "Tablet", name: "Surface Pro 9", width: 1440.0, height: 960.0, radius: 12.0, icon: "📱" },
+    // Desktops
+    FramePresetDef { category: "Desktop", name: "MacBook Pro 16\"", width: 1728.0, height: 1117.0, radius: 16.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "MacBook Pro 14\"", width: 1512.0, height: 982.0, radius: 16.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "MacBook Air 13\"", width: 1280.0, height: 832.0, radius: 16.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "Desktop (1440p)", width: 1440.0, height: 1024.0, radius: 8.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "Desktop HD (1080p)", width: 1920.0, height: 1080.0, radius: 8.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "iMac 24\" 4.5K", width: 2560.0, height: 1440.0, radius: 12.0, icon: "💻" },
+    FramePresetDef { category: "Desktop", name: "Wireframe Desktop", width: 1200.0, height: 800.0, radius: 4.0, icon: "💻" },
+    // Presentation
+    FramePresetDef { category: "Presentation", name: "Slide 16:9", width: 1920.0, height: 1080.0, radius: 0.0, icon: "📊" },
+    FramePresetDef { category: "Presentation", name: "Slide 4:3", width: 1024.0, height: 768.0, radius: 0.0, icon: "📊" },
+    // Watch
+    FramePresetDef { category: "Watch", name: "Apple Watch Ultra 49mm", width: 205.0, height: 251.0, radius: 32.0, icon: "⌚" },
+    FramePresetDef { category: "Watch", name: "Apple Watch 46mm", width: 208.0, height: 248.0, radius: 30.0, icon: "⌚" },
+    FramePresetDef { category: "Watch", name: "Apple Watch 41mm", width: 176.0, height: 215.0, radius: 26.0, icon: "⌚" },
+    // Social
+    FramePresetDef { category: "Social", name: "Instagram Post (1:1)", width: 1080.0, height: 1080.0, radius: 0.0, icon: "🌐" },
+    FramePresetDef { category: "Social", name: "Instagram Story (9:16)", width: 1080.0, height: 1920.0, radius: 0.0, icon: "🌐" },
+    FramePresetDef { category: "Social", name: "X / Twitter Post", width: 1200.0, height: 675.0, radius: 0.0, icon: "🌐" },
+    FramePresetDef { category: "Social", name: "YouTube Thumbnail", width: 1280.0, height: 720.0, radius: 0.0, icon: "🌐" },
+    FramePresetDef { category: "Social", name: "LinkedIn Banner", width: 1584.0, height: 396.0, radius: 0.0, icon: "🌐" },
+    FramePresetDef { category: "Social", name: "Dribbble Shot (4:3)", width: 1600.0, height: 1200.0, radius: 0.0, icon: "🌐" },
+    // Paper
+    FramePresetDef { category: "Paper", name: "A4", width: 595.0, height: 842.0, radius: 0.0, icon: "📄" },
+    FramePresetDef { category: "Paper", name: "A5", width: 420.0, height: 595.0, radius: 0.0, icon: "📄" },
+    FramePresetDef { category: "Paper", name: "US Letter", width: 612.0, height: 792.0, radius: 0.0, icon: "📄" },
+];
+
+pub fn render_inspector(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+    history: &mut History,
+    network: &NetworkManager,
+) {
     ScrollArea::vertical().show(ui, |ui| {
         ui.add_space(8.0);
 
-        if state.selected_ids.is_empty() {
-            // Document / Canvas Properties
-            ui.label(RichText::new("CANVAS SETTINGS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
-            ui.separator();
-            ui.add_space(8.0);
-
-            ui.horizontal(|ui| {
-                ui.label("Background");
-                let mut c = [
-                    doc.canvas_background.r as f32 / 255.0,
-                    doc.canvas_background.g as f32 / 255.0,
-                    doc.canvas_background.b as f32 / 255.0,
-                ];
-                if ui.color_edit_button_rgb(&mut c).changed() {
-                    doc.canvas_background = Color::rgb(
-                        (c[0] * 255.0) as u8,
-                        (c[1] * 255.0) as u8,
-                        (c[2] * 255.0) as u8,
-                    );
-                }
-            });
-
-            // Quick Canvas Background Swatches
-            ui.add_space(6.0);
-            ui.horizontal_wrapped(|ui| {
-                let presets = [
-                    ("#1E1E1E", "Dark (Figma)"),
-                    ("#121212", "AMOLED"),
-                    ("#F5F5F7", "Light (Apple)"),
-                    ("#FFFFFF", "Pure White"),
-                    ("#0F172A", "Slate Navy"),
-                ];
-                for (hex, tip) in presets {
-                    let col = Color::from_hex(hex).unwrap_or(Color::BLACK);
-                    let c32 = Color32::from_rgb(col.r, col.g, col.b);
-                    let (rect, resp) = ui.allocate_exact_size(EguiVec2::splat(18.0), egui::Sense::click());
-                    let p = ui.painter_at(rect);
-                    p.rect_filled(rect, 3.0, c32);
-                    p.rect_stroke(rect, 3.0, EguiStroke::new(1.0, Color32::from_rgb(80, 80, 80)), egui::StrokeKind::Outside);
-                    if resp.on_hover_text(tip).clicked() {
-                        doc.canvas_background = col;
-                    }
-                }
-            });
-
-            ui.add_space(14.0);
-            ui.label(RichText::new("ARTBOARD PRESETS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
-            ui.separator();
-            let center = sigma_core::Vec2::new(-state.pan.x + 350.0, -state.pan.y + 350.0);
-            ui.horizontal_wrapped(|ui| {
-                if ui.button("📱 iPhone 16 Pro").clicked() {
-                    let id = doc.add_frame_preset("iPhone 16 Pro", 393.0, 852.0, center);
-                    state.selected_ids = vec![id];
-                }
-                if ui.button("💻 Desktop HD").clicked() {
-                    let id = doc.add_frame_preset("Desktop HD", 1440.0, 1024.0, center);
-                    state.selected_ids = vec![id];
-                }
-                if ui.button("📸 Social Post").clicked() {
-                    let id = doc.add_frame_preset("Instagram Post", 1080.0, 1080.0, center);
-                    state.selected_ids = vec![id];
-                }
-            });
-
-            ui.add_space(14.0);
-            ui.label(RichText::new("KEYBOARD SHORTCUTS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
-            ui.separator();
-            ui.label("• V = Select / Move Tool");
-            ui.label("• F = Frame / Artboard Tool");
-            ui.label("• R = Rectangle | O = Ellipse");
-            ui.label("• L = Line | A = Arrow");
-            ui.label("• S = Star | P = Polygon");
-            ui.label("• T = Text Tool | H = Hand");
-            ui.label("• Space + Drag = Pan Canvas");
-            ui.label("• Arrow keys = Nudge (Shift: 10px)");
-            ui.label("• Cmd/Ctrl + D = Duplicate");
-            ui.label("• Cmd/Ctrl + G = Group (Shift: Ungroup)");
-            ui.label("• [ or ] = Layer Backward / Forward");
-            ui.label("• Cmd/Ctrl + Z = Undo / Redo");
+        // When Frame tool is active or nothing is selected, prioritize the Frame Presets panel!
+        if state.active_tool == ActiveTool::Frame || state.selected_ids.is_empty() {
+            render_frame_presets_panel(ui, doc, state, history, network);
             return;
         }
 
@@ -607,4 +593,209 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
             });
         }
     });
+}
+
+fn render_frame_presets_panel(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+    history: &mut History,
+    network: &NetworkManager,
+) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("⊞").size(15.0).color(Color32::from_rgb(10, 132, 255)));
+        ui.label(
+            RichText::new("FRAME PRESETS")
+                .strong()
+                .size(12.0)
+                .color(Color32::WHITE),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if state.active_tool == ActiveTool::Frame {
+                ui.label(
+                    RichText::new("ACTIVE (F)")
+                        .size(10.0)
+                        .strong()
+                        .color(Color32::from_rgb(10, 132, 255)),
+                );
+            }
+        });
+    });
+    ui.label(
+        RichText::new("Tap any device to place artboard")
+            .size(11.0)
+            .color(Color32::from_rgb(130, 130, 140)),
+    );
+    ui.separator();
+    ui.add_space(4.0);
+
+    // Search bar for devices
+    ui.horizontal(|ui| {
+        ui.label("🔍");
+        ui.add(
+            egui::TextEdit::singleline(&mut state.frame_preset_search)
+                .hint_text("Search iPhone, Mac, iPad...")
+                .desired_width(190.0),
+        );
+    });
+
+    ui.add_space(6.0);
+
+    // Category Tabs: All, Phone, Tablet, Desktop, Presentation, Watch, Social, Paper
+    let categories = [
+        ("All", "All"),
+        ("Phone", "📱 Phone"),
+        ("Tablet", "📱 Tablet"),
+        ("Desktop", "💻 Desktop"),
+        ("Presentation", "📊 Slides"),
+        ("Watch", "⌚ Watch"),
+        ("Social", "🌐 Social"),
+        ("Paper", "📄 Paper"),
+    ];
+
+    ui.horizontal_wrapped(|ui| {
+        for (cat_id, cat_label) in categories {
+            let is_selected = state.frame_preset_category == cat_id;
+            let text = RichText::new(cat_label).size(10.5);
+            if ui.selectable_label(is_selected, text).clicked() {
+                state.frame_preset_category = cat_id.to_string();
+            }
+        }
+    });
+
+    ui.add_space(6.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    let search_lower = state.frame_preset_search.trim().to_lowercase();
+    let selected_cat = state.frame_preset_category.as_str();
+
+    let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 350.0);
+
+    let mut match_count = 0;
+    for preset in ALL_FRAME_PRESETS {
+        let cat_match = selected_cat == "All" || preset.category == selected_cat;
+        let search_match = search_lower.is_empty()
+            || preset.name.to_lowercase().contains(&search_lower)
+            || preset.category.to_lowercase().contains(&search_lower);
+
+        if !cat_match || !search_match {
+            continue;
+        }
+
+        match_count += 1;
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(preset.icon).size(12.0));
+            let btn_label = RichText::new(preset.name)
+                .size(11.5)
+                .color(Color32::from_rgb(220, 220, 230));
+            let resp = ui.selectable_label(false, btn_label);
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(
+                    RichText::new(format!("{:.0}×{:.0}", preset.width, preset.height))
+                        .size(10.0)
+                        .color(Color32::from_rgb(120, 120, 130)),
+                );
+            });
+
+            if resp.on_hover_text(format!("Insert {} artboard ({:.0} × {:.0})", preset.name, preset.width, preset.height)).clicked() {
+                let insert_pos = doc.get_next_frame_position(center, preset.width);
+                let id = doc.add_frame_preset_styled(
+                    preset.name,
+                    preset.width,
+                    preset.height,
+                    insert_pos,
+                    preset.radius,
+                );
+                state.selected_ids = vec![id];
+                state.active_tool = ActiveTool::Select;
+                history.push_state(doc);
+                network.send_selection(&state.selected_ids);
+                network.send_doc_update(doc);
+            }
+        });
+        ui.add_space(1.0);
+    }
+
+    if match_count == 0 {
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("No matching devices found.")
+                .size(11.0)
+                .color(Color32::from_rgb(140, 140, 150)),
+        );
+    }
+
+    ui.add_space(12.0);
+    ui.separator();
+    ui.add_space(6.0);
+
+    // Canvas Background Settings
+    ui.label(
+        RichText::new("CANVAS SETTINGS")
+            .strong()
+            .size(11.0)
+            .color(Color32::from_rgb(140, 140, 150)),
+    );
+    ui.add_space(4.0);
+
+    ui.horizontal(|ui| {
+        ui.label("Background");
+        let mut c = [
+            doc.canvas_background.r as f32 / 255.0,
+            doc.canvas_background.g as f32 / 255.0,
+            doc.canvas_background.b as f32 / 255.0,
+        ];
+        if ui.color_edit_button_rgb(&mut c).changed() {
+            doc.canvas_background = Color::rgb(
+                (c[0] * 255.0) as u8,
+                (c[1] * 255.0) as u8,
+                (c[2] * 255.0) as u8,
+            );
+            network.send_doc_update(doc);
+        }
+    });
+
+    ui.add_space(4.0);
+    ui.horizontal_wrapped(|ui| {
+        let presets = [
+            ("#1E1E1E", "Dark (Figma)"),
+            ("#121212", "AMOLED"),
+            ("#F5F5F7", "Light (Apple)"),
+            ("#FFFFFF", "Pure White"),
+            ("#0F172A", "Slate Navy"),
+        ];
+        for (hex, tip) in presets {
+            let col = Color::from_hex(hex).unwrap_or(Color::BLACK);
+            let c32 = Color32::from_rgb(col.r, col.g, col.b);
+            let (rect, resp) = ui.allocate_exact_size(EguiVec2::splat(18.0), egui::Sense::click());
+            let p = ui.painter_at(rect);
+            p.rect_filled(rect, 3.0, c32);
+            p.rect_stroke(rect, 3.0, EguiStroke::new(1.0, Color32::from_rgb(80, 80, 80)), egui::StrokeKind::Outside);
+            if resp.on_hover_text(tip).clicked() {
+                doc.canvas_background = col;
+                network.send_doc_update(doc);
+            }
+        }
+    });
+
+    ui.add_space(12.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    // Keyboard shortcuts summary
+    ui.label(
+        RichText::new("SHORTCUTS")
+            .strong()
+            .size(10.5)
+            .color(Color32::from_rgb(140, 140, 150)),
+    );
+    ui.label(RichText::new("• F = Frame Tool & Presets").size(10.5).color(Color32::from_rgb(10, 132, 255)));
+    ui.label(RichText::new("• V = Select / Move Tool").size(10.5));
+    ui.label(RichText::new("• R = Rectangle | O = Ellipse").size(10.5));
+    ui.label(RichText::new("• T = Text Tool | H = Hand").size(10.5));
+    ui.label(RichText::new("• [ or ] = Reorder Backward / Forward").size(10.5));
+    ui.label(RichText::new("• Cmd/Ctrl + D = Duplicate").size(10.5));
+    ui.label(RichText::new("• Cmd/Ctrl + G = Group (Shift: Ungroup)").size(10.5));
 }

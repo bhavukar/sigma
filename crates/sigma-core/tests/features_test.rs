@@ -240,3 +240,44 @@ fn test_delta_sync_serialization() {
         _ => panic!("Expected NodesMove"),
     }
 }
+
+#[test]
+fn test_advanced_layer_reordering() {
+    let mut doc = Document::new("AdvancedReordering");
+    let a = doc.add_node(Node::new_rectangle(0, "A", Rect::new(0.0, 0.0, 10.0, 10.0), Color::WHITE));
+    let b = doc.add_node(Node::new_rectangle(0, "B", Rect::new(10.0, 0.0, 10.0, 10.0), Color::WHITE));
+    let c = doc.add_node(Node::new_rectangle(0, "C", Rect::new(20.0, 0.0, 10.0, 10.0), Color::WHITE));
+
+    // Initial order: [a, b, c]
+    assert_eq!(doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![a, b, c]);
+
+    // Move 'a' up: swaps with 'b' -> [b, a, c]
+    assert!(doc.move_node_up(a));
+    assert_eq!(doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![b, a, c]);
+
+    // Move 'a' down: swaps back with 'b' -> [a, b, c]
+    assert!(doc.move_node_down(a));
+    assert_eq!(doc.nodes.iter().map(|n| n.id).collect::<Vec<_>>(), vec![a, b, c]);
+
+    // Group [a, b] into a frame
+    let frame_id = doc.group_selection(&[a, b]).unwrap();
+    assert_eq!(doc.nodes.len(), 2); // [c, frame]
+
+    // Frame children: [a, b]
+    let frame = doc.find_node(frame_id).unwrap();
+    assert_eq!(frame.children.iter().map(|n| n.id).collect::<Vec<_>>(), vec![a, b]);
+
+    // Move 'a' up inside frame -> [b, a]
+    assert!(doc.move_node_up(a));
+    let frame_after = doc.find_node(frame_id).unwrap();
+    assert_eq!(frame_after.children.iter().map(|n| n.id).collect::<Vec<_>>(), vec![b, a]);
+
+    // Extract 'a' from parent frame to root
+    assert!(doc.extract_from_parent(a));
+    assert_eq!(doc.find_parent_frame_id(a), None);
+    assert_eq!(doc.nodes.len(), 3);
+
+    // Move 'c' into frame
+    assert!(doc.move_node_into_frame(c, frame_id));
+    assert_eq!(doc.find_parent_frame_id(c), Some(frame_id));
+}

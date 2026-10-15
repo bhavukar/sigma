@@ -134,6 +134,17 @@ impl NetworkManager {
         self.send_message(&msg);
     }
 
+    pub fn update_user_profile(&mut self, user_name: &str, user_color: Color) {
+        self.user_name = user_name.to_string();
+        self.user_color = user_color;
+        let join_msg = SyncMessage::Join {
+            user_id: self.user_id.clone(),
+            user_name: self.user_name.clone(),
+            color: self.user_color,
+        };
+        self.send_message(&join_msg);
+    }
+
     fn send_message(&self, msg: &SyncMessage) {
         #[cfg(target_arch = "wasm32")]
         if let Some(ws) = &self.ws {
