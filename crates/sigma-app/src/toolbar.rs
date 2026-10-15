@@ -189,6 +189,25 @@ pub fn render_toolbar(
                 ui.ctx().copy_text(svg_content);
             }
 
+            // Debugger Toggle CTA
+            let dbg_active = state.show_debugger;
+            let dbg_btn = egui::Button::new(
+                RichText::new(if dbg_active { "🐞 Debug (On)" } else { "🐞 Debug" })
+                    .size(11.5)
+                    .color(if dbg_active {
+                        Color32::from_rgb(255, 190, 0)
+                    } else {
+                        Color32::from_rgb(175, 175, 190)
+                    }),
+            );
+            if ui
+                .add(dbg_btn)
+                .on_hover_text("Toggle Engine Diagnostics & Memory HUD")
+                .clicked()
+            {
+                state.show_debugger = !state.show_debugger;
+            }
+
             ui.separator();
 
             // Multiplayer Peer Avatars (Figma style)

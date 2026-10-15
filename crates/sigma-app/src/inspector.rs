@@ -229,8 +229,23 @@ pub fn render_inspector(ui: &mut Ui, doc: &mut Document, state: &mut CanvasState
                 ui.add_space(4.0);
 
                 // Text Content Editor
-                ui.label("Content");
-                ui.text_edit_multiline(&mut text_props.content);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Content").size(11.0).color(Color32::from_rgb(160, 160, 170)));
+                });
+                let mut content = text_props.content.clone();
+                let text_resp = ui.add(
+                    egui::TextEdit::multiline(&mut content)
+                        .desired_rows(3)
+                        .desired_width(ui.available_width() - 8.0)
+                        .hint_text("Type your text here..."),
+                );
+                if text_resp.changed() {
+                    text_props.content = content;
+                    let line_count = text_props.content.lines().count().max(1);
+                    let max_len = text_props.content.lines().map(|l| l.len()).max().unwrap_or(1).max(1);
+                    node.rect.width = (max_len as f32 * text_props.font_size * 0.65).max(40.0);
+                    node.rect.height = (line_count as f32 * text_props.line_height).max(text_props.font_size * 1.3);
+                }
 
                 // Font Family Dropdown
                 ui.horizontal(|ui| {

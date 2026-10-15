@@ -4,7 +4,7 @@ use crate::network::NetworkManager;
 use crate::sidebar::render_sidebar;
 use crate::toolbar::render_toolbar;
 use egui::{Key, Rect as EguiRect, Sense, Vec2 as EguiVec2};
-use sigma_core::{Color, Document, History, Node, PeerState, Rect, SyncMessage, Vec2};
+use sigma_core::{Color, Document, History, Node, NodeKind, PeerState, Rect, SyncMessage, Vec2};
 
 pub struct SigmaApp {
     pub doc: Document,
@@ -36,7 +36,20 @@ impl Default for SigmaApp {
 impl eframe::App for SigmaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
-        ctx.set_visuals(egui::Visuals::dark());
+        let mut visuals = egui::Visuals::dark();
+        visuals.panel_fill = egui::Color32::from_rgb(30, 30, 34);
+        visuals.window_fill = egui::Color32::from_rgb(26, 26, 30);
+        visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(52, 52, 60));
+        visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(34, 34, 40);
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(48, 48, 56));
+        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(40, 40, 48);
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(56, 56, 66));
+        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(54, 54, 66);
+        visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(10, 132, 255));
+        visuals.widgets.active.bg_fill = egui::Color32::from_rgb(10, 132, 255);
+        visuals.selection.bg_fill = egui::Color32::from_rgba_premultiplied(10, 132, 255, 60);
+        visuals.selection.stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(10, 132, 255));
+        ctx.set_visuals(visuals);
 
         // 1. Process Incoming Real-time Network Messages from Cloudflare
         self.process_network_messages();
@@ -62,7 +75,7 @@ impl eframe::App for SigmaApp {
             .exact_size(240.0)
             .resizable(false)
             .show(ui, |ui| {
-                render_sidebar(ui, &mut self.doc, &mut self.canvas_state);
+                render_sidebar(ui, &mut self.doc, &mut self.canvas_state, &self.network);
             });
 
         // 5. Right Panel (Design Inspector)
@@ -540,6 +553,16 @@ impl SigmaApp {
                         self.canvas_state.drag_start_pos = None;
                         self.network.send_doc_update(&self.doc);
                     }
+                } else if response.double_clicked() {
+                    if let Some(hit_id) = self.doc.hit_test(world_mouse) {
+                        if let Some(node) = self.doc.find_node(hit_id) {
+                            if node.kind == NodeKind::Text {
+                                if let Some(props) = &node.text_props {
+                                    self.canvas_state.start_editing_text(hit_id, &props.content);
+                                }
+                            }
+                        }
+                    }
                 } else if response.clicked() {
                     if let Some(hit_id) = self.doc.hit_test(world_mouse) {
                         if ui.input(|i| i.modifiers.shift) {
@@ -553,6 +576,7 @@ impl SigmaApp {
                         }
                     } else {
                         self.canvas_state.selected_ids.clear();
+                        self.canvas_state.editing_text_id = None;
                     }
                     self.network.send_selection(&self.canvas_state.selected_ids);
                 }
@@ -569,14 +593,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width > 5.0 && rect.height > 5.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_rectangle(
-                                id,
-                                &format!("Rectangle {}", id),
+                                0,
+                                "Rectangle",
                                 rect,
                                 Color::rgba(10, 132, 255, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Rectangle {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -599,9 +625,11 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width > 10.0 && rect.height > 10.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
-                            let new_frame = Node::new_frame(id, &format!("Frame {}", id), rect);
-                            self.doc.nodes.push(new_frame);
+                            let new_frame = Node::new_frame(0, "Frame", rect);
+                            let id = self.doc.add_node(new_frame);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Frame {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -624,14 +652,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width > 5.0 && rect.height > 5.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_ellipse(
-                                id,
-                                &format!("Ellipse {}", id),
+                                0,
+                                "Ellipse",
                                 rect,
                                 Color::rgba(255, 69, 58, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Ellipse {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -654,14 +684,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width.abs() > 2.0 || rect.height.abs() > 2.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_line(
-                                id,
-                                &format!("Line {}", id),
+                                0,
+                                "Line",
                                 rect,
                                 Color::rgba(240, 240, 240, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Line {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -684,14 +716,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width.abs() > 4.0 || rect.height.abs() > 4.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_arrow(
-                                id,
-                                &format!("Arrow {}", id),
+                                0,
+                                "Arrow",
                                 rect,
                                 Color::rgba(10, 132, 255, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Arrow {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -714,14 +748,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width > 5.0 && rect.height > 5.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_star(
-                                id,
-                                &format!("Star {}", id),
+                                0,
+                                "Star",
                                 rect,
                                 Color::rgba(255, 180, 0, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Star {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -744,14 +780,16 @@ impl SigmaApp {
                         let rect = Rect::from_min_max(start, world_mouse);
                         if rect.width > 5.0 && rect.height > 5.0 {
                             self.history.push_state(&self.doc);
-                            let id = self.doc.alloc_id();
                             let new_node = Node::new_polygon(
-                                id,
-                                &format!("Polygon {}", id),
+                                0,
+                                "Polygon",
                                 rect,
                                 Color::rgba(52, 199, 89, 255),
                             );
-                            self.doc.nodes.push(new_node);
+                            let id = self.doc.add_node(new_node);
+                            if let Some(n) = self.doc.find_node_mut(id) {
+                                n.name = format!("Polygon {}", id);
+                            }
                             self.canvas_state.selected_ids = vec![id];
                             self.network.send_selection(&self.canvas_state.selected_ids);
                             self.network.send_doc_update(&self.doc);
@@ -766,17 +804,20 @@ impl SigmaApp {
                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                 if response.clicked() {
                     self.history.push_state(&self.doc);
-                    let id = self.doc.alloc_id();
                     let new_text = Node::new_text(
-                        id,
-                        &format!("Text {}", id),
+                        0,
+                        "Text",
                         world_mouse,
-                        "Type your text here...",
+                        "Type here...",
                         20.0,
                         Color::WHITE,
                     );
-                    self.doc.nodes.push(new_text);
+                    let id = self.doc.add_node(new_text);
+                    if let Some(n) = self.doc.find_node_mut(id) {
+                        n.name = format!("Text {}", id);
+                    }
                     self.canvas_state.selected_ids = vec![id];
+                    self.canvas_state.start_editing_text(id, "Type here...");
                     self.canvas_state.active_tool = ActiveTool::Select;
                     self.network.send_selection(&self.canvas_state.selected_ids);
                     self.network.send_doc_update(&self.doc);
