@@ -1,5 +1,5 @@
 use egui::{Color32, Pos2, Rect as EguiRect, Stroke as EguiStroke, Ui, Vec2 as EguiVec2};
-use sigma_core::{Document, Node, NodeId, NodeKind, Rect, Vec2};
+use sigma_core::{Document, Effect, Node, NodeId, NodeKind, Rect, Vec2};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveTool {
@@ -34,6 +34,8 @@ pub struct CanvasState {
     pub creation_start_pos: Option<Vec2>,
     pub active_handle: Option<ResizeHandle>,
     pub initial_node_rect: Option<Rect>,
+    pub marquee_start: Option<Vec2>,
+    pub marquee_current: Option<Vec2>,
     pub remote_peers: std::collections::HashMap<String, sigma_core::PeerState>,
 }
 
@@ -49,6 +51,8 @@ impl Default for CanvasState {
             creation_start_pos: None,
             active_handle: None,
             initial_node_rect: None,
+            marquee_start: None,
+            marquee_current: None,
             remote_peers: std::collections::HashMap::new(),
         }
     }
@@ -85,6 +89,34 @@ impl CanvasState {
         self.pan.x += world_before.x * (1.0 - old_zoom / new_zoom);
         self.pan.y += world_before.y * (1.0 - old_zoom / new_zoom);
     }
+
+    pub fn hit_test_handle(
+        &self,
+        bbox: Rect,
+        mouse_screen: Pos2,
+        canvas_rect: EguiRect,
+    ) -> Option<ResizeHandle> {
+        let screen_bbox = self.world_rect_to_screen(bbox, canvas_rect);
+        let tolerance = 9.0;
+
+        let handles = [
+            (ResizeHandle::TopLeft, screen_bbox.min),
+            (ResizeHandle::TopCenter, Pos2::new(screen_bbox.center().x, screen_bbox.min.y)),
+            (ResizeHandle::TopRight, Pos2::new(screen_bbox.max.x, screen_bbox.min.y)),
+            (ResizeHandle::RightCenter, Pos2::new(screen_bbox.max.x, screen_bbox.center().y)),
+            (ResizeHandle::BottomRight, screen_bbox.max),
+            (ResizeHandle::BottomCenter, Pos2::new(screen_bbox.center().x, screen_bbox.max.y)),
+            (ResizeHandle::BottomLeft, Pos2::new(screen_bbox.min.x, screen_bbox.max.y)),
+            (ResizeHandle::LeftCenter, Pos2::new(screen_bbox.min.x, screen_bbox.center().y)),
+        ];
+
+        for (handle, pt) in handles {
+            if (mouse_screen - pt).length() <= tolerance {
+                return Some(handle);
+            }
+        }
+        None
+    }
 }
 
 pub fn render_canvas(
@@ -118,7 +150,7 @@ pub fn render_canvas(
         let start_x = (state.pan.x * state.zoom) % grid_spacing_screen;
         let start_y = (state.pan.y * state.zoom) % grid_spacing_screen;
 
-        let dot_color = Color32::from_rgba_premultiplied(60, 60, 60, 100);
+        let dot_color = Color32::from_rgba_premultiplied(65, 65, 65, 120);
         let mut x = canvas_rect.min.x + start_x;
         while x < canvas_rect.max.x {
             let mut y = canvas_rect.min.y + start_y;
@@ -144,7 +176,16 @@ pub fn render_canvas(
         painter.rect(screen_rect, 2.0, preview_color, preview_stroke, egui::StrokeKind::Outside);
     }
 
-    // 5. Render Selection Overlay & Handles
+    // 5. Render Marquee Box Selection
+    if let (Some(start), Some(curr)) = (state.marquee_start, state.marquee_current) {
+        let marquee_world = Rect::from_min_max(start, curr);
+        let marquee_screen = state.world_rect_to_screen(marquee_world, canvas_rect);
+        let fill = Color32::from_rgba_premultiplied(10, 132, 255, 30);
+        let stroke = EguiStroke::new(1.0, Color32::from_rgb(10, 132, 255));
+        painter.rect(marquee_screen, 1.0, fill, stroke, egui::StrokeKind::Outside);
+    }
+
+    // 6. Render Selection Overlay & Handles
     if !state.selected_ids.is_empty() {
         if let Some(bbox) = doc.selection_bounding_box(&state.selected_ids) {
             let screen_bbox = state.world_rect_to_screen(bbox, canvas_rect);
@@ -187,7 +228,7 @@ pub fn render_canvas(
         }
     }
 
-    // 6. Render Remote Peers' Selections
+    // 7. Render Remote Peers' Selections
     for peer in state.remote_peers.values() {
         if !peer.selected_ids.is_empty() {
             if let Some(bbox) = doc.selection_bounding_box(&peer.selected_ids) {
@@ -214,7 +255,7 @@ pub fn render_canvas(
         }
     }
 
-    // 7. Render Remote Peers' Cursors
+    // 8. Render Remote Peers' Cursors
     for peer in state.remote_peers.values() {
         let cursor_screen = state.world_to_screen(peer.cursor, canvas_rect);
         if canvas_rect.contains(cursor_screen) {
@@ -247,7 +288,7 @@ pub fn render_canvas(
         }
     }
 
-    // 8. Performance & Memory Diagnostics HUD (Bottom-Left)
+    // 9. Performance & Memory Diagnostics HUD (Bottom-Left)
     let (mem_val, mem_label) = get_memory_stats();
     let hud_text = format!(
         "⚡ 60-120 FPS  |  🧠 {:.1} MB ({})  |  📦 {} Nodes  |  🌐 Edge Live",
@@ -305,6 +346,18 @@ fn draw_node(
         return;
     }
 
+    // 1. Render Drop Shadows (if any)
+    for effect in &node.effects {
+        if let Effect::DropShadow { offset, blur, color, .. } = effect {
+            let shadow_offset = EguiVec2::new(offset.x * state.zoom, offset.y * state.zoom);
+            let shadow_rect = screen_rect.translate(shadow_offset);
+            let a = ((color.a as f32 * node.opacity * 0.8).clamp(0.0, 255.0)) as u8;
+            let shadow_col = Color32::from_rgba_premultiplied(color.r, color.g, color.b, a);
+            let shadow_radius = (node.corner_radius.top_left * state.zoom + blur * 0.4).max(0.0);
+            painter.rect_filled(shadow_rect, shadow_radius, shadow_col);
+        }
+    }
+
     let fill_color = if let Some(fill) = node.fills.first() {
         match fill {
             sigma_core::Fill::Solid { color, opacity } => {
@@ -344,13 +397,48 @@ fn draw_node(
         NodeKind::Text => {
             if let Some(text_props) = &node.text_props {
                 let font_size = text_props.font_size * state.zoom;
-                painter.text(
-                    screen_rect.min,
-                    egui::Align2::LEFT_TOP,
-                    &text_props.content,
-                    egui::FontId::proportional(font_size),
+                let formatted = text_props.formatted_content();
+                let font_id = egui::FontId::proportional(font_size);
+
+                let (text_pos, align2) = match text_props.align {
+                    sigma_core::TextAlign::Left => (screen_rect.min, egui::Align2::LEFT_TOP),
+                    sigma_core::TextAlign::Center => (
+                        Pos2::new(screen_rect.center().x, screen_rect.min.y),
+                        egui::Align2::CENTER_TOP,
+                    ),
+                    sigma_core::TextAlign::Right => (
+                        Pos2::new(screen_rect.max.x, screen_rect.min.y),
+                        egui::Align2::RIGHT_TOP,
+                    ),
+                    sigma_core::TextAlign::Justify => (screen_rect.min, egui::Align2::LEFT_TOP),
+                };
+
+                let galley = painter.text(
+                    text_pos,
+                    align2,
+                    &formatted,
+                    font_id,
                     fill_color,
                 );
+
+                // Text Decorations
+                match text_props.decoration {
+                    sigma_core::TextDecoration::Underline => {
+                        let line_y = galley.max.y + 1.0;
+                        painter.line_segment(
+                            [Pos2::new(galley.min.x, line_y), Pos2::new(galley.max.x, line_y)],
+                            EguiStroke::new(1.5 * state.zoom, fill_color),
+                        );
+                    }
+                    sigma_core::TextDecoration::Strikethrough => {
+                        let line_y = galley.center().y;
+                        painter.line_segment(
+                            [Pos2::new(galley.min.x, line_y), Pos2::new(galley.max.x, line_y)],
+                            EguiStroke::new(1.5 * state.zoom, fill_color),
+                        );
+                    }
+                    sigma_core::TextDecoration::None => {}
+                }
             }
         }
         NodeKind::Line => {

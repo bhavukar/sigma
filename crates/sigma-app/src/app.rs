@@ -1,4 +1,4 @@
-use crate::canvas::{render_canvas, ActiveTool, CanvasState};
+use crate::canvas::{render_canvas, ActiveTool, CanvasState, ResizeHandle};
 use crate::inspector::render_inspector;
 use crate::network::NetworkManager;
 use crate::sidebar::render_sidebar;
@@ -166,6 +166,45 @@ impl SigmaApp {
                 self.canvas_state.active_tool = ActiveTool::Hand;
             }
 
+            // Arrow keys Nudging (Figma 1px, Shift: 10px)
+            let nudge_step = if i.modifiers.shift { 10.0 } else { 1.0 };
+            let mut nudge_delta = Vec2::ZERO;
+            if i.key_pressed(Key::ArrowLeft) {
+                nudge_delta.x -= nudge_step;
+            }
+            if i.key_pressed(Key::ArrowRight) {
+                nudge_delta.x += nudge_step;
+            }
+            if i.key_pressed(Key::ArrowUp) {
+                nudge_delta.y -= nudge_step;
+            }
+            if i.key_pressed(Key::ArrowDown) {
+                nudge_delta.y += nudge_step;
+            }
+
+            if nudge_delta != Vec2::ZERO && !self.canvas_state.selected_ids.is_empty() {
+                self.history.push_state(&self.doc);
+                for &id in &self.canvas_state.selected_ids {
+                    if let Some(node) = self.doc.find_node_mut(id) {
+                        node.rect.x += nudge_delta.x;
+                        node.rect.y += nudge_delta.y;
+                    }
+                }
+                self.network.send_doc_update(&self.doc);
+            }
+
+            // Select All (Cmd/Ctrl + A)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::A) {
+                self.canvas_state.selected_ids = self.doc.nodes.iter().map(|n| n.id).collect();
+                self.network.send_selection(&self.canvas_state.selected_ids);
+            }
+
+            // Deselect All (Escape)
+            if i.key_pressed(Key::Escape) {
+                self.canvas_state.selected_ids.clear();
+                self.network.send_selection(&[]);
+            }
+
             // Delete selected
             if (i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace))
                 && !self.canvas_state.selected_ids.is_empty()
@@ -256,23 +295,121 @@ impl SigmaApp {
             return;
         }
 
-        // 3. Tool Click / Drag Operations
+        // 3. Selection Handle Hit-Testing & Cursor Updating
+        let hovered_handle = if !self.canvas_state.selected_ids.is_empty() {
+            if let Some(bbox) = self.doc.selection_bounding_box(&self.canvas_state.selected_ids) {
+                self.canvas_state.hit_test_handle(bbox, mouse_pos, canvas_rect)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(handle) = self.canvas_state.active_handle.or(hovered_handle) {
+            let cursor_icon = match handle {
+                ResizeHandle::TopLeft | ResizeHandle::BottomRight => egui::CursorIcon::ResizeNwSe,
+                ResizeHandle::TopRight | ResizeHandle::BottomLeft => egui::CursorIcon::ResizeNeSw,
+                ResizeHandle::TopCenter | ResizeHandle::BottomCenter => egui::CursorIcon::ResizeNorth,
+                ResizeHandle::LeftCenter | ResizeHandle::RightCenter => egui::CursorIcon::ResizeEast,
+            };
+            ui.output_mut(|o| o.cursor_icon = cursor_icon);
+        }
+
+        // 4. Tool Click / Drag Operations
         match self.canvas_state.active_tool {
             ActiveTool::Select => {
                 if response.drag_started() {
-                    if let Some(hit_id) = self.doc.hit_test(world_mouse) {
+                    if let Some(handle) = hovered_handle {
+                        // Start interactive 8-handle resizing!
+                        self.canvas_state.active_handle = Some(handle);
+                        if let Some(first_id) = self.canvas_state.selected_ids.first() {
+                            if let Some(node) = self.doc.find_node(*first_id) {
+                                self.canvas_state.initial_node_rect = Some(node.rect);
+                            }
+                        }
+                        self.canvas_state.drag_start_pos = Some(world_mouse);
+                        self.history.push_state(&self.doc);
+                    } else if let Some(hit_id) = self.doc.hit_test(world_mouse) {
+                        // Move element
                         if !self.canvas_state.selected_ids.contains(&hit_id) {
-                            self.canvas_state.selected_ids = vec![hit_id];
+                            if ui.input(|i| i.modifiers.shift) {
+                                self.canvas_state.selected_ids.push(hit_id);
+                            } else {
+                                self.canvas_state.selected_ids = vec![hit_id];
+                            }
                             self.network.send_selection(&self.canvas_state.selected_ids);
                         }
                         self.history.push_state(&self.doc);
                         self.canvas_state.drag_start_pos = Some(world_mouse);
                     } else {
-                        self.canvas_state.selected_ids.clear();
-                        self.network.send_selection(&[]);
+                        // Empty canvas -> start Marquee box selection
+                        self.canvas_state.marquee_start = Some(world_mouse);
+                        self.canvas_state.marquee_current = Some(world_mouse);
+                        if !ui.input(|i| i.modifiers.shift) {
+                            self.canvas_state.selected_ids.clear();
+                            self.network.send_selection(&[]);
+                        }
                     }
                 } else if response.dragged() {
-                    if let Some(start) = self.canvas_state.drag_start_pos {
+                    if let (Some(handle), Some(start), Some(initial_rect)) = (
+                        self.canvas_state.active_handle,
+                        self.canvas_state.drag_start_pos,
+                        self.canvas_state.initial_node_rect,
+                    ) {
+                        // Interactive resizing calculations
+                        let delta = world_mouse - start;
+                        for &id in &self.canvas_state.selected_ids {
+                            if let Some(node) = self.doc.find_node_mut(id) {
+                                let mut new_rect = initial_rect;
+                                match handle {
+                                    ResizeHandle::BottomRight => {
+                                        new_rect.width = (initial_rect.width + delta.x).max(10.0);
+                                        new_rect.height = (initial_rect.height + delta.y).max(10.0);
+                                    }
+                                    ResizeHandle::BottomCenter => {
+                                        new_rect.height = (initial_rect.height + delta.y).max(10.0);
+                                    }
+                                    ResizeHandle::RightCenter => {
+                                        new_rect.width = (initial_rect.width + delta.x).max(10.0);
+                                    }
+                                    ResizeHandle::TopLeft => {
+                                        let w = (initial_rect.width - delta.x).max(10.0);
+                                        let h = (initial_rect.height - delta.y).max(10.0);
+                                        new_rect.x = initial_rect.x + (initial_rect.width - w);
+                                        new_rect.y = initial_rect.y + (initial_rect.height - h);
+                                        new_rect.width = w;
+                                        new_rect.height = h;
+                                    }
+                                    ResizeHandle::TopCenter => {
+                                        let h = (initial_rect.height - delta.y).max(10.0);
+                                        new_rect.y = initial_rect.y + (initial_rect.height - h);
+                                        new_rect.height = h;
+                                    }
+                                    ResizeHandle::TopRight => {
+                                        let h = (initial_rect.height - delta.y).max(10.0);
+                                        new_rect.y = initial_rect.y + (initial_rect.height - h);
+                                        new_rect.height = h;
+                                        new_rect.width = (initial_rect.width + delta.x).max(10.0);
+                                    }
+                                    ResizeHandle::BottomLeft => {
+                                        let w = (initial_rect.width - delta.x).max(10.0);
+                                        new_rect.x = initial_rect.x + (initial_rect.width - w);
+                                        new_rect.width = w;
+                                        new_rect.height = (initial_rect.height + delta.y).max(10.0);
+                                    }
+                                    ResizeHandle::LeftCenter => {
+                                        let w = (initial_rect.width - delta.x).max(10.0);
+                                        new_rect.x = initial_rect.x + (initial_rect.width - w);
+                                        new_rect.width = w;
+                                    }
+                                }
+                                node.rect = new_rect;
+                            }
+                        }
+                        self.network.send_doc_update(&self.doc);
+                    } else if let Some(start) = self.canvas_state.drag_start_pos {
+                        // Move elements
                         let delta = world_mouse - start;
                         for &id in &self.canvas_state.selected_ids {
                             if let Some(node) = self.doc.find_node_mut(id) {
@@ -282,13 +419,47 @@ impl SigmaApp {
                         }
                         self.canvas_state.drag_start_pos = Some(world_mouse);
                         self.network.send_doc_update(&self.doc);
+                    } else if self.canvas_state.marquee_start.is_some() {
+                        self.canvas_state.marquee_current = Some(world_mouse);
                     }
                 } else if response.drag_stopped() {
-                    self.canvas_state.drag_start_pos = None;
-                    self.network.send_doc_update(&self.doc);
+                    if self.canvas_state.active_handle.is_some() {
+                        self.canvas_state.active_handle = None;
+                        self.canvas_state.initial_node_rect = None;
+                        self.canvas_state.drag_start_pos = None;
+                        self.network.send_doc_update(&self.doc);
+                    } else if let (Some(m_start), Some(m_curr)) = (
+                        self.canvas_state.marquee_start,
+                        self.canvas_state.marquee_current,
+                    ) {
+                        let m_box = Rect::from_min_max(m_start, m_curr);
+                        let mut newly_selected = Vec::new();
+                        for node in &self.doc.nodes {
+                            if node.visible && !node.locked && node.rect.intersects(&m_box) {
+                                newly_selected.push(node.id);
+                            }
+                        }
+                        if !newly_selected.is_empty() {
+                            self.canvas_state.selected_ids = newly_selected;
+                            self.network.send_selection(&self.canvas_state.selected_ids);
+                        }
+                        self.canvas_state.marquee_start = None;
+                        self.canvas_state.marquee_current = None;
+                    } else {
+                        self.canvas_state.drag_start_pos = None;
+                        self.network.send_doc_update(&self.doc);
+                    }
                 } else if response.clicked() {
                     if let Some(hit_id) = self.doc.hit_test(world_mouse) {
-                        self.canvas_state.selected_ids = vec![hit_id];
+                        if ui.input(|i| i.modifiers.shift) {
+                            if self.canvas_state.selected_ids.contains(&hit_id) {
+                                self.canvas_state.selected_ids.retain(|&id| id != hit_id);
+                            } else {
+                                self.canvas_state.selected_ids.push(hit_id);
+                            }
+                        } else {
+                            self.canvas_state.selected_ids = vec![hit_id];
+                        }
                     } else {
                         self.canvas_state.selected_ids.clear();
                     }
@@ -389,8 +560,8 @@ impl SigmaApp {
                         id,
                         &format!("Text {}", id),
                         world_mouse,
-                        "New Text",
-                        16.0,
+                        "Type your text here...",
+                        20.0,
                         Color::WHITE,
                     );
                     self.doc.nodes.push(new_text);

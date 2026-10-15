@@ -15,21 +15,91 @@ pub enum NodeKind {
     Line,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextAlign {
+    Left,
+    Center,
+    Right,
+    Justify,
+}
+
+impl Default for TextAlign {
+    fn default() -> Self {
+        Self::Left
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextDecoration {
+    None,
+    Underline,
+    Strikethrough,
+}
+
+impl Default for TextDecoration {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TextCase {
+    Normal,
+    Uppercase,
+    Lowercase,
+    Title,
+}
+
+impl Default for TextCase {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextProperties {
     pub content: String,
+    pub font_family: String,
     pub font_size: f32,
+    pub font_weight: u16,
     pub line_height: f32,
     pub letter_spacing: f32,
+    pub align: TextAlign,
+    pub decoration: TextDecoration,
+    pub text_case: TextCase,
+    pub auto_width: bool,
 }
 
 impl Default for TextProperties {
     fn default() -> Self {
         Self {
             content: "Text".to_string(),
+            font_family: "Inter".to_string(),
             font_size: 16.0,
-            line_height: 20.0,
+            font_weight: 400,
+            line_height: 22.0,
             letter_spacing: 0.0,
+            align: TextAlign::Left,
+            decoration: TextDecoration::None,
+            text_case: TextCase::Normal,
+            auto_width: true,
+        }
+    }
+}
+
+impl TextProperties {
+    pub fn formatted_content(&self) -> String {
+        match self.text_case {
+            TextCase::Normal => self.content.clone(),
+            TextCase::Uppercase => self.content.to_uppercase(),
+            TextCase::Lowercase => self.content.to_lowercase(),
+            TextCase::Title => {
+                let mut c = self.content.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            }
         }
     }
 }
@@ -156,9 +226,15 @@ impl Node {
             children: vec![],
             text_props: Some(TextProperties {
                 content: content.to_string(),
+                font_family: "Inter".to_string(),
                 font_size,
+                font_weight: 400,
                 line_height: font_size * 1.25,
                 letter_spacing: 0.0,
+                align: TextAlign::Left,
+                decoration: TextDecoration::None,
+                text_case: TextCase::Normal,
+                auto_width: true,
             }),
         }
     }
