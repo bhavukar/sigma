@@ -716,108 +716,1217 @@ impl Document {
     }
 
     pub fn load_default_template(&mut self) {
-        // Create an iPhone Artboard Frame
+        // 1. Create a flagship iPhone 16 Pro artboard with fully nested children
         let frame_id = self.alloc_id();
         let mut frame = Node::new_frame(
             frame_id,
             "iPhone 16 Pro",
             Rect {
                 x: 100.0,
-                y: 100.0,
+                y: 80.0,
                 width: 393.0,
                 height: 852.0,
             },
         );
-        frame.corner_radius = crate::style::CornerRadius::uniform(44.0);
+        frame.corner_radius = crate::style::CornerRadius::uniform(48.0);
         frame.fills = vec![crate::style::Fill::Solid {
-            color: Color::rgba(248, 249, 250, 255),
+            color: Color::WHITE,
             opacity: 1.0,
         }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(226, 232, 240),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
 
-        // Header Card inside Frame
+        let mut children = Vec::new();
+
+        // 1.1 Dynamic Island
+        let island_id = self.alloc_id();
+        let mut island = Node::new_rectangle(
+            island_id,
+            "Dynamic Island",
+            Rect::new(146.0, 12.0, 100.0, 28.0),
+            Color::BLACK,
+        );
+        island.corner_radius = crate::style::CornerRadius::uniform(14.0);
+        children.push(island);
+
+        // 1.2 Status Bar Time
+        let time_id = self.alloc_id();
+        let time = Node::new_text(
+            time_id,
+            "Status Time",
+            Vec2::new(32.0, 16.0),
+            "9:41",
+            14.0,
+            Color::BLACK,
+        );
+        children.push(time);
+
+        // 1.3 User Header: Avatar + Greeting
+        let avatar_id = self.alloc_id();
+        let avatar = Node::new_ellipse(
+            avatar_id,
+            "User Avatar",
+            Rect::new(24.0, 58.0, 44.0, 44.0),
+            Color::rgb(10, 132, 255),
+        );
+        children.push(avatar);
+
+        let greet_id = self.alloc_id();
+        let greet = Node::new_text(
+            greet_id,
+            "Greeting",
+            Vec2::new(76.0, 60.0),
+            "Welcome back,",
+            12.0,
+            Color::rgb(100, 116, 139),
+        );
+        children.push(greet);
+
+        let name_id = self.alloc_id();
+        let user_name = Node::new_text(
+            name_id,
+            "User Name",
+            Vec2::new(76.0, 78.0),
+            "Alex Morgan",
+            17.0,
+            Color::rgb(15, 23, 42),
+        );
+        children.push(user_name);
+
+        // 1.4 Hero Balance Card
         let card_id = self.alloc_id();
         let mut card = Node::new_rectangle(
             card_id,
-            "Hero Card",
-            Rect {
-                x: 24.0,
-                y: 60.0,
-                width: 345.0,
-                height: 220.0,
-            },
-            Color::rgba(20, 20, 25, 255),
+            "Balance Card",
+            Rect::new(24.0, 120.0, 345.0, 190.0),
+            Color::rgb(15, 23, 42),
         );
         card.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        card.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(30, 41, 59),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(card);
 
-        // Card Title Text
-        let title_id = self.alloc_id();
-        let title = Node::new_text(
-            title_id,
-            "Card Title",
-            Vec2::new(48.0, 100.0),
-            "Welcome to Sigma",
-            24.0,
+        let bal_lbl_id = self.alloc_id();
+        let bal_lbl = Node::new_text(
+            bal_lbl_id,
+            "Balance Label",
+            Vec2::new(48.0, 142.0),
+            "TOTAL PORTFOLIO",
+            11.0,
+            Color::rgb(148, 163, 184),
+        );
+        children.push(bal_lbl);
+
+        let amount_id = self.alloc_id();
+        let amount = Node::new_text(
+            amount_id,
+            "Balance Amount",
+            Vec2::new(48.0, 164.0),
+            "$128,450.80",
+            28.0,
             Color::WHITE,
         );
+        children.push(amount);
 
-        // Subtitle Text
-        let sub_id = self.alloc_id();
-        let subtitle = Node::new_text(
-            sub_id,
-            "Subtitle",
-            Vec2::new(48.0, 140.0),
-            "Blazing fast Rust vector editor",
-            14.0,
-            Color::rgba(180, 185, 195, 255),
+        // Growth Badge
+        let badge_id = self.alloc_id();
+        let mut badge = Node::new_rectangle(
+            badge_id,
+            "Growth Badge",
+            Rect::new(48.0, 206.0, 105.0, 26.0),
+            Color::rgb(16, 185, 129),
         );
+        badge.corner_radius = crate::style::CornerRadius::uniform(13.0);
+        children.push(badge);
 
-        // Call-to-action button
-        let btn_id = self.alloc_id();
-        let mut btn = Node::new_rectangle(
-            btn_id,
-            "Primary Button",
-            Rect {
-                x: 48.0,
-                y: 190.0,
-                width: 150.0,
-                height: 44.0,
-            },
-            Color::rgba(10, 132, 255, 255),
-        );
-        btn.corner_radius = crate::style::CornerRadius::uniform(22.0);
-
-        let btn_text_id = self.alloc_id();
-        let btn_text = Node::new_text(
-            btn_text_id,
-            "Button Label",
-            Vec2::new(82.0, 202.0),
-            "Get Started",
-            14.0,
+        let badge_txt_id = self.alloc_id();
+        let badge_txt = Node::new_text(
+            badge_txt_id,
+            "Badge Text",
+            Vec2::new(58.0, 212.0),
+            "+14.8% this month",
+            10.5,
             Color::WHITE,
         );
+        children.push(badge_txt);
 
-        // Add an illustrative circle outside
-        let circle_id = self.alloc_id();
-        let circle = Node::new_ellipse(
-            circle_id,
-            "Accent Sphere",
-            Rect {
-                x: 560.0,
-                y: 180.0,
-                width: 160.0,
-                height: 160.0,
-            },
-            Color::rgba(255, 107, 107, 255),
+        // Quick Send Button
+        let send_btn_id = self.alloc_id();
+        let mut send_btn = Node::new_rectangle(
+            send_btn_id,
+            "Send Button",
+            Rect::new(48.0, 246.0, 100.0, 40.0),
+            Color::rgb(10, 132, 255),
         );
+        send_btn.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        children.push(send_btn);
 
+        let send_txt_id = self.alloc_id();
+        let send_txt = Node::new_text(
+            send_txt_id,
+            "Send Label",
+            Vec2::new(76.0, 258.0),
+            "Send ↗",
+            13.0,
+            Color::WHITE,
+        );
+        children.push(send_txt);
+
+        // Quick Receive Button
+        let recv_btn_id = self.alloc_id();
+        let mut recv_btn = Node::new_rectangle(
+            recv_btn_id,
+            "Receive Button",
+            Rect::new(160.0, 246.0, 100.0, 40.0),
+            Color::rgb(30, 41, 59),
+        );
+        recv_btn.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        children.push(recv_btn);
+
+        let recv_txt_id = self.alloc_id();
+        let recv_txt = Node::new_text(
+            recv_txt_id,
+            "Receive Label",
+            Vec2::new(182.0, 258.0),
+            "Receive ↙",
+            13.0,
+            Color::WHITE,
+        );
+        children.push(recv_txt);
+
+        // 1.5 Section Header: Recent Activity
+        let sec_id = self.alloc_id();
+        let sec = Node::new_text(
+            sec_id,
+            "Section Title",
+            Vec2::new(24.0, 334.0),
+            "Recent Activity",
+            17.0,
+            Color::rgb(15, 23, 42),
+        );
+        children.push(sec);
+
+        // 1.6 Activity Item 1: Apple Store
+        let item1_id = self.alloc_id();
+        let mut item1 = Node::new_rectangle(
+            item1_id,
+            "Tx Apple Store",
+            Rect::new(24.0, 364.0, 345.0, 68.0),
+            Color::rgb(248, 250, 252),
+        );
+        item1.corner_radius = crate::style::CornerRadius::uniform(16.0);
+        item1.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(226, 232, 240),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(item1);
+
+        let icon1_id = self.alloc_id();
+        let mut icon1 = Node::new_rectangle(
+            icon1_id,
+            "Icon 1",
+            Rect::new(38.0, 378.0, 40.0, 40.0),
+            Color::rgb(224, 231, 255),
+        );
+        icon1.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(icon1);
+
+        let itm1_t_id = self.alloc_id();
+        let itm1_t = Node::new_text(itm1_t_id, "Item 1 Title", Vec2::new(90.0, 380.0), "Apple Store", 15.0, Color::rgb(15, 23, 42));
+        children.push(itm1_t);
+
+        let itm1_s_id = self.alloc_id();
+        let itm1_s = Node::new_text(itm1_s_id, "Item 1 Sub", Vec2::new(90.0, 400.0), "MacBook Pro M4", 12.0, Color::rgb(100, 116, 139));
+        children.push(itm1_s);
+
+        let itm1_p_id = self.alloc_id();
+        let itm1_p = Node::new_text(itm1_p_id, "Item 1 Price", Vec2::new(270.0, 388.0), "-$2,499.00", 14.5, Color::rgb(239, 68, 68));
+        children.push(itm1_p);
+
+        // 1.7 Activity Item 2: Client Payout
+        let item2_id = self.alloc_id();
+        let mut item2 = Node::new_rectangle(
+            item2_id,
+            "Tx Client Payout",
+            Rect::new(24.0, 442.0, 345.0, 68.0),
+            Color::rgb(248, 250, 252),
+        );
+        item2.corner_radius = crate::style::CornerRadius::uniform(16.0);
+        item2.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(226, 232, 240),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(item2);
+
+        let icon2_id = self.alloc_id();
+        let mut icon2 = Node::new_rectangle(
+            icon2_id,
+            "Icon 2",
+            Rect::new(38.0, 456.0, 40.0, 40.0),
+            Color::rgb(220, 252, 231),
+        );
+        icon2.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(icon2);
+
+        let itm2_t_id = self.alloc_id();
+        let itm2_t = Node::new_text(itm2_t_id, "Item 2 Title", Vec2::new(90.0, 458.0), "Client Payout", 15.0, Color::rgb(15, 23, 42));
+        children.push(itm2_t);
+
+        let itm2_s_id = self.alloc_id();
+        let itm2_s = Node::new_text(itm2_s_id, "Item 2 Sub", Vec2::new(90.0, 478.0), "Sigma Design System", 12.0, Color::rgb(100, 116, 139));
+        children.push(itm2_s);
+
+        let itm2_p_id = self.alloc_id();
+        let itm2_p = Node::new_text(itm2_p_id, "Item 2 Price", Vec2::new(270.0, 466.0), "+$8,500.00", 14.5, Color::rgb(16, 185, 129));
+        children.push(itm2_p);
+
+        // 1.8 Bottom Tab Bar & Home Indicator
+        let tab_bar_id = self.alloc_id();
+        let mut tab_bar = Node::new_rectangle(
+            tab_bar_id,
+            "Tab Bar",
+            Rect::new(0.0, 772.0, 393.0, 80.0),
+            Color::WHITE,
+        );
+        tab_bar.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(226, 232, 240),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(tab_bar);
+
+        let ind_id = self.alloc_id();
+        let mut ind = Node::new_rectangle(
+            ind_id,
+            "Home Indicator",
+            Rect::new(126.0, 840.0, 140.0, 4.0),
+            Color::BLACK,
+        );
+        ind.corner_radius = crate::style::CornerRadius::uniform(2.0);
+        children.push(ind);
+
+        frame.children = children;
         self.nodes.push(frame);
-        self.nodes.push(card);
-        self.nodes.push(title);
-        self.nodes.push(subtitle);
-        self.nodes.push(btn);
-        self.nodes.push(btn_text);
-        self.nodes.push(circle);
+
+        // 2. Next to it on canvas: A Desktop Card / UI Kit Artboard
+        let kit_id = self.alloc_id();
+        let mut kit = Node::new_frame(
+            kit_id,
+            "Design System Components",
+            Rect::new(550.0, 80.0, 440.0, 460.0),
+        );
+        kit.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        kit.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(24, 24, 27),
+            opacity: 1.0,
+        }];
+        kit.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut kit_children = Vec::new();
+
+        let kit_title_id = self.alloc_id();
+        let kit_title = Node::new_text(
+            kit_title_id,
+            "Kit Title",
+            Vec2::new(32.0, 32.0),
+            "UI Kit & Buttons",
+            20.0,
+            Color::WHITE,
+        );
+        kit_children.push(kit_title);
+
+        let kit_sub_id = self.alloc_id();
+        let kit_sub = Node::new_text(
+            kit_sub_id,
+            "Kit Subtitle",
+            Vec2::new(32.0, 62.0),
+            "Reusable vector components in Rust",
+            13.0,
+            Color::rgb(161, 161, 170),
+        );
+        kit_children.push(kit_sub);
+
+        // Primary Button Component
+        let pbtn_id = self.alloc_id();
+        let mut pbtn = Node::new_rectangle(
+            pbtn_id,
+            "Button / Primary",
+            Rect::new(32.0, 110.0, 160.0, 44.0),
+            Color::rgb(10, 132, 255),
+        );
+        pbtn.corner_radius = crate::style::CornerRadius::uniform(10.0);
+        kit_children.push(pbtn);
+
+        let pbtn_t_id = self.alloc_id();
+        let pbtn_t = Node::new_text(
+            pbtn_t_id,
+            "Button Text",
+            Vec2::new(64.0, 122.0),
+            "Primary Action",
+            14.0,
+            Color::WHITE,
+        );
+        kit_children.push(pbtn_t);
+
+        // Secondary Button Component
+        let sbtn_id = self.alloc_id();
+        let mut sbtn = Node::new_rectangle(
+            sbtn_id,
+            "Button / Secondary",
+            Rect::new(210.0, 110.0, 160.0, 44.0),
+            Color::rgb(39, 39, 42),
+        );
+        sbtn.corner_radius = crate::style::CornerRadius::uniform(10.0);
+        sbtn.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(63, 63, 70),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        kit_children.push(sbtn);
+
+        let sbtn_t_id = self.alloc_id();
+        let sbtn_t = Node::new_text(
+            sbtn_t_id,
+            "Secondary Text",
+            Vec2::new(245.0, 122.0),
+            "Secondary",
+            14.0,
+            Color::WHITE,
+        );
+        kit_children.push(sbtn_t);
+
+        // Badges Showcase
+        let bg1_id = self.alloc_id();
+        let mut bg1 = Node::new_rectangle(bg1_id, "Badge Success", Rect::new(32.0, 180.0, 80.0, 28.0), Color::rgb(16, 185, 129));
+        bg1.corner_radius = crate::style::CornerRadius::uniform(14.0);
+        kit_children.push(bg1);
+
+        let bg1_t_id = self.alloc_id();
+        let bg1_t = Node::new_text(bg1_t_id, "Success", Vec2::new(48.0, 186.0), "Active", 12.0, Color::WHITE);
+        kit_children.push(bg1_t);
+
+        let bg2_id = self.alloc_id();
+        let mut bg2 = Node::new_rectangle(bg2_id, "Badge Warning", Rect::new(125.0, 180.0, 80.0, 28.0), Color::rgb(245, 158, 11));
+        bg2.corner_radius = crate::style::CornerRadius::uniform(14.0);
+        kit_children.push(bg2);
+
+        let bg2_t_id = self.alloc_id();
+        let bg2_t = Node::new_text(bg2_t_id, "Pending", Vec2::new(140.0, 186.0), "Review", 12.0, Color::WHITE);
+        kit_children.push(bg2_t);
+
+        let bg3_id = self.alloc_id();
+        let mut bg3 = Node::new_rectangle(bg3_id, "Badge Pro", Rect::new(218.0, 180.0, 80.0, 28.0), Color::rgb(168, 85, 247));
+        bg3.corner_radius = crate::style::CornerRadius::uniform(14.0);
+        kit_children.push(bg3);
+
+        let bg3_t_id = self.alloc_id();
+        let bg3_t = Node::new_text(bg3_t_id, "Pro", Vec2::new(246.0, 186.0), "PRO", 12.0, Color::WHITE);
+        kit_children.push(bg3_t);
+
+        // Modern Input Field
+        let inp_id = self.alloc_id();
+        let mut inp = Node::new_rectangle(
+            inp_id,
+            "Input Field",
+            Rect::new(32.0, 235.0, 360.0, 48.0),
+            Color::rgb(18, 18, 20),
+        );
+        inp.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        inp.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(63, 63, 70),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        kit_children.push(inp);
+
+        let inpt_id = self.alloc_id();
+        let inpt = Node::new_text(
+            inpt_id,
+            "Input Placeholder",
+            Vec2::new(48.0, 250.0),
+            "Search or jump to command...",
+            13.5,
+            Color::rgb(113, 113, 122),
+        );
+        kit_children.push(inpt);
+
+        kit.children = kit_children;
+        self.nodes.push(kit);
+
         self.rebuild_spatial_index();
+    }
+
+    pub fn insert_fintech_mobile(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 393.0;
+        let h = 852.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "iPhone 16 Pro - Fintech", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(48.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::WHITE,
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(226, 232, 240),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        // Dynamic Island
+        let island_id = self.alloc_id();
+        let mut island = Node::new_rectangle(
+            island_id,
+            "Dynamic Island",
+            Rect::new(146.0, 12.0, 100.0, 28.0),
+            Color::BLACK,
+        );
+        island.corner_radius = crate::style::CornerRadius::uniform(14.0);
+        children.push(island);
+
+        // Status Bar Time
+        let time_id = self.alloc_id();
+        let time = Node::new_text(
+            time_id,
+            "Status Time",
+            Vec2::new(32.0, 16.0),
+            "9:41",
+            14.0,
+            Color::BLACK,
+        );
+        children.push(time);
+
+        // User Avatar & Greeting
+        let avatar_id = self.alloc_id();
+        let avatar = Node::new_ellipse(
+            avatar_id,
+            "User Avatar",
+            Rect::new(24.0, 58.0, 44.0, 44.0),
+            Color::rgb(10, 132, 255),
+        );
+        children.push(avatar);
+
+        let greet_id = self.alloc_id();
+        let greet = Node::new_text(
+            greet_id,
+            "Greeting",
+            Vec2::new(76.0, 60.0),
+            "Welcome back,",
+            12.0,
+            Color::rgb(100, 116, 139),
+        );
+        children.push(greet);
+
+        let name_id = self.alloc_id();
+        let user_name = Node::new_text(
+            name_id,
+            "User Name",
+            Vec2::new(76.0, 78.0),
+            "Alex Morgan",
+            17.0,
+            Color::rgb(15, 23, 42),
+        );
+        children.push(user_name);
+
+        // Balance Card
+        let card_id = self.alloc_id();
+        let mut card = Node::new_rectangle(
+            card_id,
+            "Balance Card",
+            Rect::new(24.0, 120.0, 345.0, 190.0),
+            Color::rgb(15, 23, 42),
+        );
+        card.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        children.push(card);
+
+        let bal_lbl_id = self.alloc_id();
+        let bal_lbl = Node::new_text(
+            bal_lbl_id,
+            "Balance Label",
+            Vec2::new(48.0, 142.0),
+            "TOTAL PORTFOLIO",
+            11.0,
+            Color::rgb(148, 163, 184),
+        );
+        children.push(bal_lbl);
+
+        let amount_id = self.alloc_id();
+        let amount = Node::new_text(
+            amount_id,
+            "Balance Amount",
+            Vec2::new(48.0, 164.0),
+            "$128,450.80",
+            28.0,
+            Color::WHITE,
+        );
+        children.push(amount);
+
+        // Badge
+        let badge_id = self.alloc_id();
+        let mut badge = Node::new_rectangle(
+            badge_id,
+            "Growth Badge",
+            Rect::new(48.0, 206.0, 105.0, 26.0),
+            Color::rgb(16, 185, 129),
+        );
+        badge.corner_radius = crate::style::CornerRadius::uniform(13.0);
+        children.push(badge);
+
+        let badge_txt_id = self.alloc_id();
+        let badge_txt = Node::new_text(
+            badge_txt_id,
+            "Badge Text",
+            Vec2::new(58.0, 212.0),
+            "+14.8% this month",
+            10.5,
+            Color::WHITE,
+        );
+        children.push(badge_txt);
+
+        // Send & Receive Buttons
+        let send_btn_id = self.alloc_id();
+        let mut send_btn = Node::new_rectangle(
+            send_btn_id,
+            "Send Button",
+            Rect::new(48.0, 246.0, 100.0, 40.0),
+            Color::rgb(10, 132, 255),
+        );
+        send_btn.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        children.push(send_btn);
+
+        let send_txt_id = self.alloc_id();
+        let send_txt = Node::new_text(
+            send_txt_id,
+            "Send Label",
+            Vec2::new(76.0, 258.0),
+            "Send ↗",
+            13.0,
+            Color::WHITE,
+        );
+        children.push(send_txt);
+
+        let recv_btn_id = self.alloc_id();
+        let mut recv_btn = Node::new_rectangle(
+            recv_btn_id,
+            "Receive Button",
+            Rect::new(160.0, 246.0, 100.0, 40.0),
+            Color::rgb(30, 41, 59),
+        );
+        recv_btn.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        children.push(recv_btn);
+
+        let recv_txt_id = self.alloc_id();
+        let recv_txt = Node::new_text(
+            recv_txt_id,
+            "Receive Label",
+            Vec2::new(182.0, 258.0),
+            "Receive ↙",
+            13.0,
+            Color::WHITE,
+        );
+        children.push(recv_txt);
+
+        // Recent Activity Section
+        let sec_id = self.alloc_id();
+        let sec = Node::new_text(
+            sec_id,
+            "Section Title",
+            Vec2::new(24.0, 334.0),
+            "Recent Activity",
+            17.0,
+            Color::rgb(15, 23, 42),
+        );
+        children.push(sec);
+
+        // Activity Item 1
+        let item1_id = self.alloc_id();
+        let mut item1 = Node::new_rectangle(
+            item1_id,
+            "Tx Apple Store",
+            Rect::new(24.0, 364.0, 345.0, 68.0),
+            Color::rgb(248, 250, 252),
+        );
+        item1.corner_radius = crate::style::CornerRadius::uniform(16.0);
+        children.push(item1);
+
+        let itm1_t_id = self.alloc_id();
+        let itm1_t = Node::new_text(itm1_t_id, "Item 1 Title", Vec2::new(88.0, 380.0), "Apple Store", 15.0, Color::rgb(15, 23, 42));
+        children.push(itm1_t);
+
+        let itm1_p_id = self.alloc_id();
+        let itm1_p = Node::new_text(itm1_p_id, "Item 1 Price", Vec2::new(270.0, 388.0), "-$2,499.00", 14.5, Color::rgb(239, 68, 68));
+        children.push(itm1_p);
+
+        // Activity Item 2
+        let item2_id = self.alloc_id();
+        let mut item2 = Node::new_rectangle(
+            item2_id,
+            "Tx Client Payout",
+            Rect::new(24.0, 442.0, 345.0, 68.0),
+            Color::rgb(248, 250, 252),
+        );
+        item2.corner_radius = crate::style::CornerRadius::uniform(16.0);
+        children.push(item2);
+
+        let itm2_t_id = self.alloc_id();
+        let itm2_t = Node::new_text(itm2_t_id, "Item 2 Title", Vec2::new(88.0, 458.0), "Client Payout", 15.0, Color::rgb(15, 23, 42));
+        children.push(itm2_t);
+
+        let itm2_p_id = self.alloc_id();
+        let itm2_p = Node::new_text(itm2_p_id, "Item 2 Price", Vec2::new(270.0, 466.0), "+$8,500.00", 14.5, Color::rgb(16, 185, 129));
+        children.push(itm2_p);
+
+        // Bottom Tab Bar
+        let tab_bar_id = self.alloc_id();
+        let tab_bar = Node::new_rectangle(
+            tab_bar_id,
+            "Tab Bar",
+            Rect::new(0.0, 772.0, 393.0, 80.0),
+            Color::WHITE,
+        );
+        children.push(tab_bar);
+
+        let ind_id = self.alloc_id();
+        let mut ind = Node::new_rectangle(
+            ind_id,
+            "Home Indicator",
+            Rect::new(126.0, 840.0, 140.0, 4.0),
+            Color::BLACK,
+        );
+        ind.corner_radius = crate::style::CornerRadius::uniform(2.0);
+        children.push(ind);
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
+    }
+
+    pub fn insert_saas_hero(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 1200.0;
+        let h = 720.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "Desktop - SaaS Landing Hero", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(9, 9, 11),
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        // 1. Navigation Bar
+        let nav_id = self.alloc_id();
+        let mut nav = Node::new_rectangle(nav_id, "Navbar Bar", Rect::new(0.0, 0.0, 1200.0, 72.0), Color::rgb(12, 12, 15));
+        nav.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(nav);
+
+        let logo_id = self.alloc_id();
+        let logo = Node::new_text(logo_id, "Logo", Vec2::new(48.0, 24.0), "✦ SIGMA PRO", 18.0, Color::WHITE);
+        children.push(logo);
+
+        let link1_id = self.alloc_id();
+        let link1 = Node::new_text(link1_id, "Nav Link 1", Vec2::new(400.0, 26.0), "Features", 14.0, Color::rgb(161, 161, 170));
+        children.push(link1);
+
+        let link2_id = self.alloc_id();
+        let link2 = Node::new_text(link2_id, "Nav Link 2", Vec2::new(490.0, 26.0), "Architecture", 14.0, Color::rgb(161, 161, 170));
+        children.push(link2);
+
+        let link3_id = self.alloc_id();
+        let link3 = Node::new_text(link3_id, "Nav Link 3", Vec2::new(600.0, 26.0), "Pricing", 14.0, Color::rgb(161, 161, 170));
+        children.push(link3);
+
+        let nav_btn_id = self.alloc_id();
+        let mut nav_btn = Node::new_rectangle(nav_btn_id, "Nav CTA", Rect::new(1030.0, 16.0, 120.0, 40.0), Color::rgb(10, 132, 255));
+        nav_btn.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        children.push(nav_btn);
+
+        let nav_btn_t_id = self.alloc_id();
+        let nav_btn_t = Node::new_text(nav_btn_t_id, "Nav CTA Text", Vec2::new(1052.0, 26.0), "Get Started", 13.5, Color::WHITE);
+        children.push(nav_btn_t);
+
+        // 2. Announcement Pill
+        let pill_id = self.alloc_id();
+        let mut pill = Node::new_rectangle(pill_id, "Hero Pill", Rect::new(420.0, 120.0, 360.0, 32.0), Color::rgb(24, 24, 27));
+        pill.corner_radius = crate::style::CornerRadius::uniform(16.0);
+        pill.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(63, 63, 70),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(pill);
+
+        let pill_t_id = self.alloc_id();
+        let pill_t = Node::new_text(pill_t_id, "Hero Pill Text", Vec2::new(440.0, 128.0), "⚡ NEXT-GEN VECTOR GRAPHICS IN RUST & WASM", 11.0, Color::rgb(148, 163, 184));
+        children.push(pill_t);
+
+        // 3. Main Headline
+        let head_id = self.alloc_id();
+        let head = Node::new_text(head_id, "Hero Headline", Vec2::new(310.0, 175.0), "Design at the speed of thought.", 42.0, Color::WHITE);
+        children.push(head);
+
+        // 4. Subheadline
+        let sub_id = self.alloc_id();
+        let sub = Node::new_text(
+            sub_id,
+            "Hero Subtitle",
+            Vec2::new(260.0, 240.0),
+            "Zero garbage collection, 120 FPS rendering, and real-time edge sync with Cloudflare.",
+            16.0,
+            Color::rgb(161, 161, 170),
+        );
+        children.push(sub);
+
+        // 5. Hero CTA Buttons
+        let hcta1_id = self.alloc_id();
+        let mut hcta1 = Node::new_rectangle(hcta1_id, "Primary Hero CTA", Rect::new(450.0, 290.0, 150.0, 48.0), Color::rgb(10, 132, 255));
+        hcta1.corner_radius = crate::style::CornerRadius::uniform(10.0);
+        children.push(hcta1);
+
+        let hcta1_t_id = self.alloc_id();
+        let hcta1_t = Node::new_text(hcta1_t_id, "Hero CTA 1 Text", Vec2::new(475.0, 304.0), "Start Free ➔", 14.5, Color::WHITE);
+        children.push(hcta1_t);
+
+        let hcta2_id = self.alloc_id();
+        let mut hcta2 = Node::new_rectangle(hcta2_id, "Secondary Hero CTA", Rect::new(616.0, 290.0, 130.0, 48.0), Color::rgb(24, 24, 27));
+        hcta2.corner_radius = crate::style::CornerRadius::uniform(10.0);
+        hcta2.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(63, 63, 70),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(hcta2);
+
+        let hcta2_t_id = self.alloc_id();
+        let hcta2_t = Node::new_text(hcta2_t_id, "Hero CTA 2 Text", Vec2::new(638.0, 304.0), "GitHub ↗", 14.5, Color::WHITE);
+        children.push(hcta2_t);
+
+        // 6. Showcase Dashboard Preview Card
+        let dash_id = self.alloc_id();
+        let mut dash = Node::new_rectangle(dash_id, "Dashboard Canvas Preview", Rect::new(120.0, 370.0, 960.0, 300.0), Color::rgb(18, 18, 22));
+        dash.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        dash.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(dash);
+
+        // Preview inner stats chips
+        let stat1_id = self.alloc_id();
+        let mut stat1 = Node::new_rectangle(stat1_id, "Stat 1", Rect::new(160.0, 410.0, 240.0, 100.0), Color::rgb(24, 24, 30));
+        stat1.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(stat1);
+
+        let s1_val_id = self.alloc_id();
+        let s1_val = Node::new_text(s1_val_id, "Stat 1 Val", Vec2::new(184.0, 430.0), "120 FPS", 24.0, Color::rgb(52, 199, 89));
+        children.push(s1_val);
+
+        let s1_lbl_id = self.alloc_id();
+        let s1_lbl = Node::new_text(s1_lbl_id, "Stat 1 Lbl", Vec2::new(184.0, 470.0), "V-Sync Hardware Render", 12.0, Color::rgb(148, 163, 184));
+        children.push(s1_lbl);
+
+        let stat2_id = self.alloc_id();
+        let mut stat2 = Node::new_rectangle(stat2_id, "Stat 2", Rect::new(430.0, 410.0, 240.0, 100.0), Color::rgb(24, 24, 30));
+        stat2.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(stat2);
+
+        let s2_val_id = self.alloc_id();
+        let s2_val = Node::new_text(s2_val_id, "Stat 2 Val", Vec2::new(454.0, 430.0), "35 B/frame", 24.0, Color::rgb(10, 132, 255));
+        children.push(s2_val);
+
+        let s2_lbl_id = self.alloc_id();
+        let s2_lbl = Node::new_text(s2_lbl_id, "Stat 2 Lbl", Vec2::new(454.0, 470.0), "Cloudflare WebSocket Delta", 12.0, Color::rgb(148, 163, 184));
+        children.push(s2_lbl);
+
+        let stat3_id = self.alloc_id();
+        let mut stat3 = Node::new_rectangle(stat3_id, "Stat 3", Rect::new(700.0, 410.0, 240.0, 100.0), Color::rgb(24, 24, 30));
+        stat3.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(stat3);
+
+        let s3_val_id = self.alloc_id();
+        let s3_val = Node::new_text(s3_val_id, "Stat 3 Val", Vec2::new(724.0, 430.0), "0.0% GC", 24.0, Color::rgb(168, 85, 247));
+        children.push(s3_val);
+
+        let s3_lbl_id = self.alloc_id();
+        let s3_lbl = Node::new_text(s3_lbl_id, "Stat 3 Lbl", Vec2::new(724.0, 470.0), "Zero-overhead Rust memory", 12.0, Color::rgb(148, 163, 184));
+        children.push(s3_lbl);
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
+    }
+
+    pub fn insert_pricing_card(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 360.0;
+        let h = 540.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "Card - Pro Pricing", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(24, 24, 27),
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        // Badge
+        let badge_id = self.alloc_id();
+        let mut badge = Node::new_rectangle(badge_id, "Popular Pill", Rect::new(32.0, 32.0, 110.0, 26.0), Color::rgb(10, 132, 255));
+        badge.corner_radius = crate::style::CornerRadius::uniform(13.0);
+        children.push(badge);
+
+        let badge_t_id = self.alloc_id();
+        let badge_t = Node::new_text(badge_t_id, "Popular Text", Vec2::new(42.0, 38.0), "★ MOST POPULAR", 9.5, Color::WHITE);
+        children.push(badge_t);
+
+        // Title & Price
+        let title_id = self.alloc_id();
+        let title = Node::new_text(title_id, "Plan Title", Vec2::new(32.0, 76.0), "Sigma Pro", 24.0, Color::WHITE);
+        children.push(title);
+
+        let price_id = self.alloc_id();
+        let price = Node::new_text(price_id, "Price", Vec2::new(32.0, 110.0), "$29", 36.0, Color::WHITE);
+        children.push(price);
+
+        let cycle_id = self.alloc_id();
+        let cycle = Node::new_text(cycle_id, "Billing Cycle", Vec2::new(105.0, 126.0), "/ user / month", 13.0, Color::rgb(148, 163, 184));
+        children.push(cycle);
+
+        let desc_id = self.alloc_id();
+        let desc = Node::new_text(desc_id, "Description", Vec2::new(32.0, 160.0), "For software teams requiring blazing fast design workflow.", 12.5, Color::rgb(161, 161, 170));
+        children.push(desc);
+
+        // Divider
+        let div_id = self.alloc_id();
+        let div = Node::new_rectangle(div_id, "Divider", Rect::new(32.0, 205.0, 296.0, 1.0), Color::rgb(39, 39, 42));
+        children.push(div);
+
+        // Feature list
+        let feats = [
+            "✓ Unlimited canvas artboards & frames",
+            "✓ Real-time multi-user cursor sync",
+            "✓ 120 FPS WebAssembly rendering engine",
+            "✓ Pixel-perfect SVG & CSS code generation",
+            "✓ Better Auth session & cloud security",
+        ];
+        for (i, feat) in feats.iter().enumerate() {
+            let f_id = self.alloc_id();
+            let f_text = Node::new_text(f_id, "Feature Item", Vec2::new(32.0, 225.0 + (i as f32) * 36.0), feat, 12.5, Color::rgb(228, 228, 231));
+            children.push(f_text);
+        }
+
+        // CTA Button
+        let cta_id = self.alloc_id();
+        let mut cta = Node::new_rectangle(cta_id, "CTA Button", Rect::new(32.0, 450.0, 296.0, 50.0), Color::rgb(10, 132, 255));
+        cta.corner_radius = crate::style::CornerRadius::uniform(12.0);
+        children.push(cta);
+
+        let cta_t_id = self.alloc_id();
+        let cta_t = Node::new_text(cta_t_id, "CTA Text", Vec2::new(118.0, 466.0), "Upgrade to Pro ➔", 14.5, Color::WHITE);
+        children.push(cta_t);
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
+    }
+
+    pub fn insert_auth_card(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 400.0;
+        let h = 480.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "Modal - Sign In", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(24, 24, 27),
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        let title_id = self.alloc_id();
+        let title = Node::new_text(title_id, "Modal Title", Vec2::new(32.0, 36.0), "Welcome to Sigma", 22.0, Color::WHITE);
+        children.push(title);
+
+        let sub_id = self.alloc_id();
+        let sub = Node::new_text(sub_id, "Modal Sub", Vec2::new(32.0, 68.0), "Sign in to access your cloud workspace", 13.0, Color::rgb(161, 161, 170));
+        children.push(sub);
+
+        // Google button
+        let gbtn_id = self.alloc_id();
+        let mut gbtn = Node::new_rectangle(gbtn_id, "Google Button", Rect::new(32.0, 110.0, 336.0, 44.0), Color::rgb(30, 30, 34));
+        gbtn.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        gbtn.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(63, 63, 70),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(gbtn);
+
+        let gbtn_t_id = self.alloc_id();
+        let gbtn_t = Node::new_text(gbtn_t_id, "Google Text", Vec2::new(115.0, 124.0), "G  Continue with Google", 13.5, Color::WHITE);
+        children.push(gbtn_t);
+
+        // Divider
+        let div_id = self.alloc_id();
+        let div = Node::new_text(div_id, "Divider Text", Vec2::new(110.0, 176.0), "— or continue with email —", 11.0, Color::rgb(113, 113, 122));
+        children.push(div);
+
+        // Email input
+        let inp1_id = self.alloc_id();
+        let mut inp1 = Node::new_rectangle(inp1_id, "Email Input", Rect::new(32.0, 210.0, 336.0, 44.0), Color::rgb(18, 18, 20));
+        inp1.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        inp1.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(50, 50, 56),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(inp1);
+
+        let inp1_t_id = self.alloc_id();
+        let inp1_t = Node::new_text(inp1_t_id, "Email Placeholder", Vec2::new(48.0, 224.0), "alex@acme.studio", 13.0, Color::rgb(148, 163, 184));
+        children.push(inp1_t);
+
+        // Password input
+        let inp2_id = self.alloc_id();
+        let mut inp2 = Node::new_rectangle(inp2_id, "Password Input", Rect::new(32.0, 270.0, 336.0, 44.0), Color::rgb(18, 18, 20));
+        inp2.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        inp2.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(50, 50, 56),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(inp2);
+
+        let inp2_t_id = self.alloc_id();
+        let inp2_t = Node::new_text(inp2_t_id, "Password Placeholder", Vec2::new(48.0, 284.0), "••••••••••••••••", 13.0, Color::rgb(113, 113, 122));
+        children.push(inp2_t);
+
+        // Submit Button
+        let sbtn_id = self.alloc_id();
+        let mut sbtn = Node::new_rectangle(sbtn_id, "Sign In Button", Rect::new(32.0, 340.0, 336.0, 46.0), Color::rgb(10, 132, 255));
+        sbtn.corner_radius = crate::style::CornerRadius::uniform(10.0);
+        children.push(sbtn);
+
+        let sbtn_t_id = self.alloc_id();
+        let sbtn_t = Node::new_text(sbtn_t_id, "Sign In Text", Vec2::new(125.0, 354.0), "Sign In with Better Auth", 13.5, Color::WHITE);
+        children.push(sbtn_t);
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
+    }
+
+    pub fn insert_button_kit(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 440.0;
+        let h = 320.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "Component Kit - Buttons", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(24, 24, 27),
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        let title_id = self.alloc_id();
+        let title = Node::new_text(title_id, "Kit Title", Vec2::new(32.0, 28.0), "Button Design System", 18.0, Color::WHITE);
+        children.push(title);
+
+        // Row 1: Primary, Secondary, Outline
+        let b1_id = self.alloc_id();
+        let mut b1 = Node::new_rectangle(b1_id, "Primary Btn", Rect::new(32.0, 72.0, 115.0, 42.0), Color::rgb(10, 132, 255));
+        b1.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        children.push(b1);
+        let b1_t = Node::new_text(self.alloc_id(), "Primary", Vec2::new(62.0, 84.0), "Primary", 13.0, Color::WHITE);
+        children.push(b1_t);
+
+        let b2_id = self.alloc_id();
+        let mut b2 = Node::new_rectangle(b2_id, "Secondary Btn", Rect::new(160.0, 72.0, 115.0, 42.0), Color::rgb(39, 39, 42));
+        b2.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        children.push(b2);
+        let b2_t = Node::new_text(self.alloc_id(), "Secondary", Vec2::new(180.0, 84.0), "Secondary", 13.0, Color::WHITE);
+        children.push(b2_t);
+
+        let b3_id = self.alloc_id();
+        let mut b3 = Node::new_rectangle(b3_id, "Outline Btn", Rect::new(290.0, 72.0, 115.0, 42.0), Color::rgb(18, 18, 20));
+        b3.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        b3.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(82, 82, 91),
+            width: 1.0,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+        children.push(b3);
+        let b3_t = Node::new_text(self.alloc_id(), "Outline", Vec2::new(324.0, 84.0), "Outline", 13.0, Color::rgb(228, 228, 231));
+        children.push(b3_t);
+
+        // Row 2: Success, Destructive
+        let b4_id = self.alloc_id();
+        let mut b4 = Node::new_rectangle(b4_id, "Success Btn", Rect::new(32.0, 135.0, 175.0, 42.0), Color::rgb(16, 185, 129));
+        b4.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        children.push(b4);
+        let b4_t = Node::new_text(self.alloc_id(), "Success", Vec2::new(76.0, 147.0), "Confirm & Save", 13.0, Color::WHITE);
+        children.push(b4_t);
+
+        let b5_id = self.alloc_id();
+        let mut b5 = Node::new_rectangle(b5_id, "Destructive Btn", Rect::new(230.0, 135.0, 175.0, 42.0), Color::rgb(239, 68, 68));
+        b5.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        children.push(b5);
+        let b5_t = Node::new_text(self.alloc_id(), "Destructive", Vec2::new(278.0, 147.0), "Delete Item", 13.0, Color::WHITE);
+        children.push(b5_t);
+
+        // Row 3: Pill action button
+        let b6_id = self.alloc_id();
+        let mut b6 = Node::new_rectangle(b6_id, "Pill Action Btn", Rect::new(32.0, 205.0, 375.0, 48.0), Color::rgb(99, 102, 241));
+        b6.corner_radius = crate::style::CornerRadius::uniform(24.0);
+        children.push(b6);
+        let b6_t = Node::new_text(self.alloc_id(), "Pill", Vec2::new(140.0, 219.0), "✦ Explore Component Library", 14.0, Color::WHITE);
+        children.push(b6_t);
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
+    }
+
+    pub fn insert_badge_kit(&mut self, center: Vec2) -> NodeId {
+        let frame_id = self.alloc_id();
+        let w = 440.0;
+        let h = 260.0;
+        let rect = Rect::new(center.x - w * 0.5, center.y - h * 0.5, w, h);
+        let mut frame = Node::new_frame(frame_id, "Component Kit - Badges", rect);
+        frame.corner_radius = crate::style::CornerRadius::uniform(20.0);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::rgb(24, 24, 27),
+            opacity: 1.0,
+        }];
+        frame.strokes = vec![crate::style::Stroke {
+            color: Color::rgb(39, 39, 42),
+            width: 1.5,
+            align: crate::style::StrokeAlign::Inside,
+            opacity: 1.0,
+            style: crate::style::StrokeStyle::Solid,
+        }];
+
+        let mut children = Vec::new();
+
+        let title_id = self.alloc_id();
+        let title = Node::new_text(title_id, "Kit Title", Vec2::new(32.0, 28.0), "Status Badges & Tags", 18.0, Color::WHITE);
+        children.push(title);
+
+        let badges = [
+            ("Active", Color::rgb(16, 185, 129), 32.0, 75.0, 85.0),
+            ("In Progress", Color::rgb(59, 130, 246), 130.0, 75.0, 110.0),
+            ("Pending", Color::rgb(245, 158, 11), 255.0, 75.0, 95.0),
+            ("Error / Failed", Color::rgb(239, 68, 68), 32.0, 125.0, 120.0),
+            ("Enterprise", Color::rgb(168, 85, 247), 165.0, 125.0, 105.0),
+            ("✦ PRO", Color::rgb(14, 165, 233), 285.0, 125.0, 85.0),
+        ];
+
+        for (label, color, bx, by, bw) in badges {
+            let bg_id = self.alloc_id();
+            let mut bg = Node::new_rectangle(bg_id, "Badge", Rect::new(bx, by, bw, 28.0), color);
+            bg.corner_radius = crate::style::CornerRadius::uniform(14.0);
+            children.push(bg);
+
+            let txt_id = self.alloc_id();
+            let txt = Node::new_text(txt_id, "Badge Label", Vec2::new(bx + 14.0, by + 6.5), label, 11.5, Color::WHITE);
+            children.push(txt);
+        }
+
+        frame.children = children;
+        self.spatial_index.insert(frame_id, frame.rect);
+        self.nodes.push(frame);
+        frame_id
     }
 }
 

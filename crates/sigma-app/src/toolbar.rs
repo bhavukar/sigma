@@ -11,34 +11,50 @@ pub fn render_toolbar(
     network: &NetworkManager,
 ) {
     ui.horizontal(|ui| {
-        ui.add_space(8.0);
+        ui.add_space(4.0);
 
-        // Tool buttons
+        // Segmented Tools Dock (Figma Pro Style)
         let tools = [
-            (ActiveTool::Select, "↖ Move", "V"),
-            (ActiveTool::Frame, "⊞ Frame", "F"),
-            (ActiveTool::Rectangle, "▭", "R"),
-            (ActiveTool::Ellipse, "○", "O"),
-            (ActiveTool::Line, "—", "L"),
-            (ActiveTool::Arrow, "→", "A"),
-            (ActiveTool::Star, "★", "S"),
-            (ActiveTool::Polygon, "△", "P"),
-            (ActiveTool::Text, "T Text", "T"),
-            (ActiveTool::Hand, "✋ Hand", "H"),
+            (ActiveTool::Select, "↖", "Move (V)"),
+            (ActiveTool::Frame, "⊞", "Frame / Artboard (F)"),
+            (ActiveTool::Rectangle, "▭", "Rectangle (R)"),
+            (ActiveTool::Ellipse, "○", "Ellipse (O)"),
+            (ActiveTool::Line, "—", "Line (L)"),
+            (ActiveTool::Arrow, "→", "Arrow (A)"),
+            (ActiveTool::Star, "★", "Star (S)"),
+            (ActiveTool::Polygon, "△", "Polygon (P)"),
+            (ActiveTool::Text, "T", "Text (T)"),
+            (ActiveTool::Hand, "✋", "Hand Pan (H)"),
         ];
 
-        for (tool, label, shortcut) in tools {
-            let is_active = state.active_tool == tool;
-            let btn_text = format!("{} ({})", label, shortcut);
-            let btn = ui.selectable_label(is_active, btn_text);
-            if btn.clicked() {
-                state.active_tool = tool;
-            }
-        }
+        egui::Frame::new()
+            .fill(Color32::from_rgb(24, 24, 28))
+            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(45, 45, 52)))
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::symmetric(2, 2))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (tool, icon, tip) in tools {
+                        let is_active = state.active_tool == tool;
+                        let text = RichText::new(icon)
+                            .size(13.0)
+                            .strong()
+                            .color(if is_active {
+                                Color32::from_rgb(10, 132, 255)
+                            } else {
+                                Color32::from_rgb(210, 210, 220)
+                            });
+                        let btn = ui.selectable_label(is_active, text).on_hover_text(tip);
+                        if btn.clicked() {
+                            state.active_tool = tool;
+                        }
+                    }
+                });
+            });
 
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(6.0);
 
         // Frame Presets Quick Add
         egui::ComboBox::from_id_salt("frame_presets_combo")
@@ -142,13 +158,13 @@ pub fn render_toolbar(
                 }
             });
 
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(6.0);
 
         // Undo / Redo
         let can_undo = history.can_undo();
-        let undo_resp = ui.add_enabled(can_undo, egui::Button::new("↶ Undo"));
+        let undo_resp = ui.add_enabled(can_undo, egui::Button::new("↶")).on_hover_text("Undo (Cmd+Z)");
         if undo_resp.clicked() {
             if let Some(prev) = history.undo(doc) {
                 *doc = prev;
@@ -157,7 +173,7 @@ pub fn render_toolbar(
         }
 
         let can_redo = history.can_redo();
-        let redo_resp = ui.add_enabled(can_redo, egui::Button::new("↷ Redo"));
+        let redo_resp = ui.add_enabled(can_redo, egui::Button::new("↷")).on_hover_text("Redo (Cmd+Shift+Z)");
         if redo_resp.clicked() {
             if let Some(next) = history.redo(doc) {
                 *doc = next;
@@ -165,11 +181,37 @@ pub fn render_toolbar(
             }
         }
 
-        ui.add_space(16.0);
+        ui.add_space(8.0);
         ui.separator();
 
-        // Right side: Multiplayer presence, Zoom & Export
+        // Right side: Multiplayer presence, Zoom, Prototype Present & Export
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(8.0);
+
+            // Prototype Presentation CTA (Figma Style)
+            let pres_active = state.is_presenting;
+            let pres_btn = egui::Button::new(
+                RichText::new(if pres_active { "⏹ Stop Presenting" } else { "▶ Present" })
+                    .size(11.5)
+                    .strong()
+                    .color(Color32::WHITE),
+            )
+            .fill(if pres_active {
+                Color32::from_rgb(220, 38, 38)
+            } else {
+                Color32::from_rgb(16, 185, 129)
+            })
+            .corner_radius(egui::CornerRadius::same(6));
+
+            if ui
+                .add(pres_btn)
+                .on_hover_text("Launch Prototype Presentation Mode in Fullscreen (Esc to exit)")
+                .clicked()
+            {
+                state.is_presenting = !state.is_presenting;
+            }
+
+            ui.separator();
             ui.add_space(8.0);
 
             // Better Auth: Sign In or User Profile Button

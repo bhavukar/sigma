@@ -69,7 +69,42 @@ pub fn render_inspector(
     network: &NetworkManager,
 ) {
     ScrollArea::vertical().show(ui, |ui| {
-        ui.add_space(8.0);
+        ui.add_space(6.0);
+
+        // Segmented Tabs Header (Figma Pro)
+        ui.horizontal(|ui| {
+            ui.add_space(4.0);
+            let tabs = [("🎨 DESIGN", 0), ("⚡ PROTOTYPE", 1), ("📋 EXPORT", 2)];
+            for (title, tab_idx) in tabs {
+                let is_active = state.active_inspector_tab == tab_idx;
+                if ui.selectable_label(
+                    is_active,
+                    RichText::new(title)
+                        .size(11.0)
+                        .strong()
+                        .color(if is_active {
+                            Color32::from_rgb(10, 132, 255)
+                        } else {
+                            Color32::from_rgb(140, 140, 150)
+                        }),
+                ).clicked() {
+                    state.active_inspector_tab = tab_idx;
+                }
+            }
+        });
+
+        ui.add_space(4.0);
+        ui.separator();
+
+        if state.active_inspector_tab == 1 {
+            render_prototype_panel(ui, doc, state);
+            return;
+        }
+
+        if state.active_inspector_tab == 2 {
+            render_export_panel(ui, doc, state);
+            return;
+        }
 
         // When Frame tool is active or nothing is selected, prioritize the Frame Presets panel!
         if state.active_tool == ActiveTool::Frame || state.selected_ids.is_empty() {
@@ -799,3 +834,114 @@ fn render_frame_presets_panel(
     ui.label(RichText::new("• Cmd/Ctrl + D = Duplicate").size(10.5));
     ui.label(RichText::new("• Cmd/Ctrl + G = Group (Shift: Ungroup)").size(10.5));
 }
+
+fn render_prototype_panel(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+) {
+    ui.add_space(8.0);
+    ui.label(RichText::new("PROTOTYPE SETTINGS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
+    ui.add_space(6.0);
+
+    // Device Bezel selector
+    ui.label(RichText::new("Device Frame Bezel:").size(12.0).color(Color32::from_rgb(200, 200, 210)));
+    let devices = [
+        "iPhone 16 Pro",
+        "iPhone 16 Pro Max",
+        "MacBook Pro 16\"",
+        "Desktop HD",
+        "None (Borderless)",
+    ];
+    for dev in devices {
+        let is_sel = state.presentation_device == dev;
+        if ui.radio(is_sel, dev).clicked() {
+            state.presentation_device = dev.to_string();
+        }
+    }
+
+    ui.add_space(10.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    ui.label(RichText::new("Starting Frame / Artboard:").size(12.0).color(Color32::from_rgb(200, 200, 210)));
+    let root_frames: Vec<(sigma_core::NodeId, String)> = doc.nodes
+        .iter()
+        .filter(|n| n.kind == NodeKind::Frame)
+        .map(|n| (n.id, n.name.clone()))
+        .collect();
+
+    if root_frames.is_empty() {
+        ui.label(RichText::new("No frame artboards created yet.").size(11.0).color(Color32::from_rgb(120, 120, 130)));
+    } else {
+        for (fid, fname) in root_frames {
+            let is_cur = state.selected_ids.contains(&fid);
+            if ui.selectable_label(is_cur, format!("⊞ {}", fname)).clicked() {
+                state.selected_ids = vec![fid];
+            }
+        }
+    }
+
+    ui.add_space(16.0);
+    let pres_cta = egui::Button::new(
+        RichText::new("▶ Launch Prototype").size(13.0).strong().color(Color32::WHITE),
+    )
+    .fill(Color32::from_rgb(16, 185, 129))
+    .corner_radius(egui::CornerRadius::same(8));
+
+    if ui.add_sized([ui.available_width(), 38.0], pres_cta).clicked() {
+        state.is_presenting = true;
+    }
+
+    ui.add_space(12.0);
+    ui.label(
+        RichText::new("💡 Tips:\n• Press Esc during presentation to exit.\n• Switch devices seamlessly from top bar.")
+            .size(10.5)
+            .color(Color32::from_rgb(130, 130, 140)),
+    );
+}
+
+fn render_export_panel(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+) {
+    ui.add_space(8.0);
+    ui.label(RichText::new("EXPORT OPTIONS").strong().size(11.0).color(Color32::from_rgb(140, 140, 150)));
+    ui.add_space(6.0);
+
+    if let Some(&first_id) = state.selected_ids.first() {
+        if let Some(node) = doc.find_node(first_id) {
+            ui.label(RichText::new(format!("Selected: {}", node.name)).size(12.0).strong().color(Color32::WHITE));
+            ui.add_space(6.0);
+
+            if ui.button("⚡ Copy Selected SVG").clicked() {
+                let svg = export_node_to_svg(node);
+                ui.ctx().copy_text(svg);
+            }
+            if ui.button("🎨 Copy Selected CSS").clicked() {
+                let css = export_to_css(node);
+                ui.ctx().copy_text(css);
+            }
+            if ui.button("📋 Copy JSON Specs").clicked() {
+                if let Ok(json) = serde_json::to_string_pretty(node) {
+                    ui.ctx().copy_text(json);
+                }
+            }
+        }
+    } else {
+        ui.label(RichText::new("Entire Document Export").size(12.0).strong().color(Color32::WHITE));
+        ui.add_space(6.0);
+
+        if ui.button("⚡ Export Full Document SVG").clicked() {
+            let svg = sigma_core::export_to_svg(doc);
+            ui.ctx().copy_text(svg);
+        }
+        if ui.button("📋 Export Document JSON").clicked() {
+            if let Ok(json) = serde_json::to_string_pretty(doc) {
+                ui.ctx().copy_text(json);
+            }
+        }
+    }
+}
+

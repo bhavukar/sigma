@@ -43,26 +43,49 @@ pub fn render_sidebar(
         ui.add_space(8.0);
         ui.separator();
 
-        // Tabs: Layers & Pages
+        // Segmented Tabs: Layers & UI Kits
         ui.horizontal(|ui| {
-            ui.add_space(8.0);
+            ui.add_space(6.0);
             let layer_count = doc.nodes.len();
-            ui.label(
-                RichText::new(format!("LAYERS ({})", layer_count))
+            let is_layers = state.active_sidebar_tab == 0;
+            let layer_lbl = format!("≡ LAYERS ({})", layer_count);
+            if ui.selectable_label(
+                is_layers,
+                RichText::new(layer_lbl)
                     .size(11.0)
                     .strong()
-                    .color(Color32::from_rgb(10, 132, 255)),
-            );
-            ui.add_space(14.0);
-            ui.label(
-                RichText::new("PAGES")
+                    .color(if is_layers {
+                        Color32::from_rgb(10, 132, 255)
+                    } else {
+                        Color32::from_rgb(140, 140, 150)
+                    }),
+            ).clicked() {
+                state.active_sidebar_tab = 0;
+            }
+
+            let is_assets = state.active_sidebar_tab == 1;
+            if ui.selectable_label(
+                is_assets,
+                RichText::new("📦 UI KITS")
                     .size(11.0)
-                    .color(Color32::from_rgb(130, 130, 140)),
-            );
+                    .strong()
+                    .color(if is_assets {
+                        Color32::from_rgb(10, 132, 255)
+                    } else {
+                        Color32::from_rgb(140, 140, 150)
+                    }),
+            ).clicked() {
+                state.active_sidebar_tab = 1;
+            }
         });
 
         ui.add_space(4.0);
         ui.separator();
+
+        if state.active_sidebar_tab == 1 {
+            render_ui_kits_tab(ui, doc, state, network);
+            return;
+        }
 
         // Layer Action Bar (Reorder, Group, Duplicate, Delete)
         if !state.selected_ids.is_empty() {
@@ -390,3 +413,111 @@ fn render_node_row(
         }
     }
 }
+
+fn render_ui_kits_tab(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+    network: &NetworkManager,
+) {
+    ScrollArea::vertical().show(ui, |ui| {
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("PRODUCTION UI KITS")
+                .size(11.0)
+                .strong()
+                .color(Color32::from_rgb(140, 140, 150)),
+        );
+        ui.label(
+            RichText::new("1-click insert pre-built, responsive vector templates & components.")
+                .size(10.0)
+                .color(Color32::from_rgb(110, 110, 120)),
+        );
+        ui.add_space(10.0);
+
+        let center = sigma_core::Vec2::new(-state.pan.x + 400.0, -state.pan.y + 350.0);
+
+        let kits = [
+            (
+                "📱 iOS 18 Fintech App",
+                "iPhone 16 Pro (393×852) with Dynamic Island, portfolio cards & transactions.",
+                0,
+            ),
+            (
+                "💻 SaaS Landing Hero",
+                "Desktop 1440 (1200×720) with navbar, headlines, CTA dock & stats preview.",
+                1,
+            ),
+            (
+                "💳 Glassmorphic Pricing Card",
+                "Dark glass card (360×540) with feature checklist, popular badge & CTA.",
+                2,
+            ),
+            (
+                "🔐 Modern Auth Modal",
+                "Sign In dialog (400×480) with Google, GitHub OAuth & email fields.",
+                3,
+            ),
+            (
+                "🔘 UI Button System",
+                "Complete button component kit with primary, secondary, outline, pill states.",
+                4,
+            ),
+            (
+                "🏷️ Status Badges & Chips",
+                "Status tags, pill badges (Active, In Progress, Enterprise, PRO).",
+                5,
+            ),
+        ];
+
+        for (title, desc, kind) in kits {
+            egui::Frame::new()
+                .fill(Color32::from_rgb(26, 26, 30))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(45, 45, 52)))
+                .corner_radius(egui::CornerRadius::same(8))
+                .inner_margin(egui::Margin::same(10))
+                .show(ui, |ui| {
+                    ui.label(RichText::new(title).size(12.0).strong().color(Color32::WHITE));
+                    ui.add_space(2.0);
+                    ui.label(RichText::new(desc).size(10.0).color(Color32::from_rgb(140, 140, 150)));
+                    ui.add_space(6.0);
+
+                    if ui.button(RichText::new("+ Insert to Canvas").size(11.0).color(Color32::from_rgb(10, 132, 255))).clicked() {
+                        let id = match kind {
+                            0 => {
+                                let pos = doc.get_next_frame_position(center, 393.0);
+                                doc.insert_fintech_mobile(pos)
+                            }
+                            1 => {
+                                let pos = doc.get_next_frame_position(center, 1200.0);
+                                doc.insert_saas_hero(pos)
+                            }
+                            2 => {
+                                let pos = doc.get_next_frame_position(center, 360.0);
+                                doc.insert_pricing_card(pos)
+                            }
+                            3 => {
+                                let pos = doc.get_next_frame_position(center, 400.0);
+                                doc.insert_auth_card(pos)
+                            }
+                            4 => {
+                                let pos = doc.get_next_frame_position(center, 440.0);
+                                doc.insert_button_kit(pos)
+                            }
+                            5 => {
+                                let pos = doc.get_next_frame_position(center, 440.0);
+                                doc.insert_badge_kit(pos)
+                            }
+                            _ => doc.alloc_id(),
+                        };
+                        state.selected_ids = vec![id];
+                        state.active_tool = crate::canvas::ActiveTool::Select;
+                        network.send_selection(&state.selected_ids);
+                        network.send_doc_update(doc);
+                    }
+                });
+            ui.add_space(6.0);
+        }
+    });
+}
+

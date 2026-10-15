@@ -48,19 +48,28 @@ impl eframe::App for SigmaApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let mut visuals = egui::Visuals::dark();
-        visuals.panel_fill = egui::Color32::from_rgb(30, 30, 34);
-        visuals.window_fill = egui::Color32::from_rgb(26, 26, 30);
-        visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(52, 52, 60));
-        visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(34, 34, 40);
-        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(48, 48, 56));
-        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(40, 40, 48);
-        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(56, 56, 66));
-        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(54, 54, 66);
+        visuals.panel_fill = egui::Color32::from_rgb(18, 18, 22);
+        visuals.window_fill = egui::Color32::from_rgb(22, 22, 26);
+        visuals.window_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(39, 39, 45));
+        visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(24, 24, 28);
+        visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(39, 39, 45));
+        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(28, 28, 33);
+        visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 45, 52));
+        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(38, 38, 46);
         visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(10, 132, 255));
         visuals.widgets.active.bg_fill = egui::Color32::from_rgb(10, 132, 255);
+        visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
+        visuals.widgets.open.corner_radius = egui::CornerRadius::same(6);
         visuals.selection.bg_fill = egui::Color32::from_rgba_premultiplied(10, 132, 255, 60);
         visuals.selection.stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(10, 132, 255));
         ctx.set_visuals(visuals);
+        ctx.style_mut_of(egui::Theme::Dark, |s| {
+            s.spacing.item_spacing = egui::vec2(6.0, 5.0);
+            s.spacing.button_padding = egui::vec2(8.0, 4.0);
+        });
 
         // 1. Process Incoming Real-time Network Messages from Cloudflare
         self.process_network_messages();
@@ -70,7 +79,7 @@ impl eframe::App for SigmaApp {
 
         // 3. Top Toolbar
         egui::Panel::top("top_toolbar")
-            .exact_size(42.0)
+            .exact_size(44.0)
             .show(ui, |ui| {
                 render_toolbar(
                     ui,
@@ -81,27 +90,31 @@ impl eframe::App for SigmaApp {
                 );
             });
 
-        // 4. Left Panel (Layers Tree)
-        egui::Panel::left("left_sidebar")
-            .exact_size(240.0)
-            .resizable(false)
-            .show(ui, |ui| {
-                render_sidebar(ui, &mut self.doc, &mut self.canvas_state, &self.network);
-            });
+        // 4. Left Panel (Layers Tree & UI Kits) - Hidden during Presentation Mode
+        if !self.canvas_state.is_presenting {
+            egui::Panel::left("left_sidebar")
+                .exact_size(240.0)
+                .resizable(false)
+                .show(ui, |ui| {
+                    render_sidebar(ui, &mut self.doc, &mut self.canvas_state, &self.network);
+                });
+        }
 
-        // 5. Right Panel (Design Inspector)
-        egui::Panel::right("right_inspector")
-            .exact_size(260.0)
-            .resizable(false)
-            .show(ui, |ui| {
-                render_inspector(
-                    ui,
-                    &mut self.doc,
-                    &mut self.canvas_state,
-                    &mut self.history,
-                    &self.network,
-                );
-            });
+        // 5. Right Panel (Design Inspector) - Hidden during Presentation Mode
+        if !self.canvas_state.is_presenting {
+            egui::Panel::right("right_inspector")
+                .exact_size(260.0)
+                .resizable(false)
+                .show(ui, |ui| {
+                    render_inspector(
+                        ui,
+                        &mut self.doc,
+                        &mut self.canvas_state,
+                        &mut self.history,
+                        &self.network,
+                    );
+                });
+        }
 
         // 6. Central Panel (The Infinite Design Canvas)
         egui::CentralPanel::default()
@@ -317,10 +330,14 @@ impl SigmaApp {
                 self.network.send_selection(&self.canvas_state.selected_ids);
             }
 
-            // Deselect All (Escape)
+            // Deselect All / Exit Presentation (Escape)
             if i.key_pressed(Key::Escape) {
-                self.canvas_state.selected_ids.clear();
-                self.network.send_selection(&[]);
+                if self.canvas_state.is_presenting {
+                    self.canvas_state.is_presenting = false;
+                } else {
+                    self.canvas_state.selected_ids.clear();
+                    self.network.send_selection(&[]);
+                }
             }
 
             // Delete selected

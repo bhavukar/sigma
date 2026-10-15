@@ -281,3 +281,48 @@ fn test_advanced_layer_reordering() {
     assert!(doc.move_node_into_frame(c, frame_id));
     assert_eq!(doc.find_parent_frame_id(c), Some(frame_id));
 }
+
+#[test]
+fn test_production_ui_kits() {
+    let mut doc = Document::new("UI Kits Test");
+    let origin = Vec2::new(0.0, 0.0);
+
+    let fintech_id = doc.insert_fintech_mobile(origin);
+    let saas_id = doc.insert_saas_hero(origin);
+    let pricing_id = doc.insert_pricing_card(origin);
+    let auth_id = doc.insert_auth_card(origin);
+    let btn_id = doc.insert_button_kit(origin);
+    let badge_id = doc.insert_badge_kit(origin);
+
+    assert_eq!(doc.nodes.len(), 6);
+
+    let fintech = doc.find_node(fintech_id).unwrap();
+    assert_eq!(fintech.kind, NodeKind::Frame);
+    assert!(fintech.children.len() >= 10);
+    assert_eq!(fintech.rect.width, 393.0);
+    assert_eq!(fintech.rect.height, 852.0);
+
+    let saas = doc.find_node(saas_id).unwrap();
+    assert_eq!(saas.kind, NodeKind::Frame);
+    assert!(saas.children.len() >= 10);
+    assert_eq!(saas.rect.width, 1200.0);
+
+    let pricing = doc.find_node(pricing_id).unwrap();
+    assert_eq!(pricing.kind, NodeKind::Frame);
+    assert!(pricing.children.len() >= 8);
+
+    let auth = doc.find_node(auth_id).unwrap();
+    assert_eq!(auth.kind, NodeKind::Frame);
+    assert!(auth.children.len() >= 8);
+
+    let btn_kit = doc.find_node(btn_id).unwrap();
+    assert_eq!(btn_kit.kind, NodeKind::Frame);
+    assert!(btn_kit.children.len() >= 6);
+
+    let badge_kit = doc.find_node(badge_id).unwrap();
+    assert_eq!(badge_kit.kind, NodeKind::Frame);
+    assert!(badge_kit.children.len() >= 6);
+
+    assert_eq!(doc.spatial_index.len(), 6);
+}
+

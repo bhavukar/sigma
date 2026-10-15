@@ -62,12 +62,18 @@ pub struct CanvasState {
     // Frame Presets state
     pub frame_preset_category: String,
     pub frame_preset_search: String,
+    // Modern UI Tabs & Presentation
+    pub active_sidebar_tab: usize,   // 0: Layers, 1: UI Kits & Assets
+    pub active_inspector_tab: usize, // 0: Design, 1: Prototype, 2: Export
+    pub is_presenting: bool,
+    pub presentation_device: String,
+    pub show_grid: bool,
 }
 
 impl Default for CanvasState {
     fn default() -> Self {
         Self {
-            pan: Vec2::new(100.0, 80.0),
+            pan: Vec2::new(60.0, 40.0),
             zoom: 1.0,
             active_tool: ActiveTool::Select,
             selected_ids: Vec::new(),
@@ -98,11 +104,37 @@ impl Default for CanvasState {
             auth_status_msg: None,
             frame_preset_category: "All".to_string(),
             frame_preset_search: String::new(),
+            active_sidebar_tab: 0,
+            active_inspector_tab: 0,
+            is_presenting: false,
+            presentation_device: "iPhone 16 Pro".to_string(),
+            show_grid: true,
         }
     }
 }
 
 impl CanvasState {
+    pub fn fit_to_screen(&mut self, doc: &Document, canvas_rect: EguiRect) {
+        if doc.nodes.is_empty() {
+            self.pan = Vec2::new(100.0, 80.0);
+            self.zoom = 1.0;
+            return;
+        }
+        let all_ids: Vec<NodeId> = doc.nodes.iter().map(|n| n.id).collect();
+        if let Some(bbox) = doc.selection_bounding_box(&all_ids) {
+            let padding = 80.0;
+            let available_w = (canvas_rect.width() - padding * 2.0).max(100.0);
+            let available_h = (canvas_rect.height() - padding * 2.0).max(100.0);
+            let scale_x = available_w / bbox.width.max(1.0);
+            let scale_y = available_h / bbox.height.max(1.0);
+            let target_zoom = sigma_core::safe_clamp(scale_x.min(scale_y), 0.1, 2.5);
+            self.zoom = target_zoom;
+            let center_world = Vec2::new(bbox.x + bbox.width * 0.5, bbox.y + bbox.height * 0.5);
+            self.pan.x = canvas_rect.width() * 0.5 / self.zoom - center_world.x;
+            self.pan.y = canvas_rect.height() * 0.5 / self.zoom - center_world.y;
+        }
+    }
+
     pub fn start_editing_text(&mut self, id: NodeId, text: &str) {
         self.editing_text_id = Some(id);
         self.editing_text_buffer = text.to_string();
@@ -511,6 +543,130 @@ pub fn render_canvas(
         if close_debugger {
             state.show_debugger = false;
         }
+    }
+
+    // 10. Floating Viewport HUD (Zoom, Fit, Grid)
+    if !state.is_presenting {
+        let hud_w = 205.0;
+        let hud_h = 32.0;
+        let hud_rect = EguiRect::from_min_size(
+            Pos2::new(canvas_rect.max.x - hud_w - 16.0, canvas_rect.max.y - hud_h - 16.0),
+            EguiVec2::new(hud_w, hud_h),
+        );
+        painter.rect_filled(hud_rect, 8.0, Color32::from_rgba_premultiplied(24, 24, 28, 220));
+        painter.rect_stroke(hud_rect, 8.0, EguiStroke::new(1.0, Color32::from_rgb(50, 50, 60)), egui::StrokeKind::Outside);
+
+        let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(hud_rect));
+        child_ui.horizontal_centered(|ui| {
+            ui.add_space(4.0);
+            if ui.small_button("−").on_hover_text("Zoom Out (Cmd -)").clicked() {
+                state.zoom = (state.zoom / 1.2).max(0.05);
+            }
+            let pct_str = format!("{:.0}%", state.zoom * 100.0);
+            if ui.selectable_label(false, egui::RichText::new(pct_str).size(11.0).strong()).on_hover_text("Reset Zoom to 100%").clicked() {
+                state.zoom = 1.0;
+            }
+            if ui.small_button("+").on_hover_text("Zoom In (Cmd +)").clicked() {
+                state.zoom = (state.zoom * 1.2).min(32.0);
+            }
+            ui.separator();
+            if ui.small_button("⊡ Fit").on_hover_text("Fit All to Screen").clicked() {
+                state.fit_to_screen(doc, canvas_rect);
+            }
+            let grid_icon = if state.show_grid { "▦" } else { "▢" };
+            if ui.small_button(grid_icon).on_hover_text("Toggle Dot Grid").clicked() {
+                state.show_grid = !state.show_grid;
+            }
+        });
+    }
+
+    // 11. Prototype Presentation View (When Presenting)
+    if state.is_presenting {
+        render_presentation_mode(ui, doc, state, canvas_rect);
+    }
+}
+
+fn render_presentation_mode(
+    ui: &mut Ui,
+    doc: &mut Document,
+    state: &mut CanvasState,
+    canvas_rect: EguiRect,
+) {
+    let painter = ui.painter_at(canvas_rect);
+    // Cinema dark backdrop
+    painter.rect_filled(canvas_rect, 0.0, Color32::from_rgb(10, 10, 12));
+
+    // Top Presentation Navigation Bar
+    let bar_rect = EguiRect::from_min_size(canvas_rect.min, EguiVec2::new(canvas_rect.width(), 44.0));
+    painter.rect_filled(bar_rect, 0.0, Color32::from_rgba_premultiplied(18, 18, 22, 240));
+    painter.line_segment([Pos2::new(bar_rect.min.x, bar_rect.max.y), bar_rect.max], EguiStroke::new(1.0, Color32::from_rgb(38, 38, 44)));
+
+    let mut top_ui = ui.new_child(egui::UiBuilder::new().max_rect(bar_rect));
+    top_ui.horizontal_centered(|ui| {
+        ui.add_space(12.0);
+        ui.label(egui::RichText::new("▶ PROTOTYPE STAGE").size(12.0).strong().color(Color32::from_rgb(10, 132, 255)));
+        ui.separator();
+        ui.label(egui::RichText::new(&doc.name).size(12.0).color(Color32::from_rgb(200, 200, 210)));
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(12.0);
+            if ui.button(egui::RichText::new("✕ Close (Esc)").size(11.5).strong().color(Color32::WHITE)).clicked()
+                || ui.input(|i| i.key_pressed(egui::Key::Escape))
+            {
+                state.is_presenting = false;
+            }
+
+            ui.separator();
+
+            let device_label = format!("📱 {}", state.presentation_device);
+            egui::ComboBox::from_id_salt("present_dev_combo")
+                .selected_text(device_label)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.presentation_device, "iPhone 16 Pro".to_string(), "📱 iPhone 16 Pro (393 × 852)");
+                    ui.selectable_value(&mut state.presentation_device, "MacBook Pro 16".to_string(), "💻 MacBook Pro 16\" (1728 × 1117)");
+                    ui.selectable_value(&mut state.presentation_device, "Fit View".to_string(), "⊡ Fit View");
+                });
+        });
+    });
+
+    // Find presentation frame: either selected frame, or first frame in document, or first node
+    let target_node = doc.nodes.iter().find(|n| state.selected_ids.contains(&n.id) && n.kind == sigma_core::NodeKind::Frame)
+        .or_else(|| doc.nodes.iter().find(|n| n.kind == sigma_core::NodeKind::Frame))
+        .or_else(|| doc.nodes.first());
+
+    if let Some(target) = target_node {
+        let stage_center = Pos2::new(canvas_rect.center().x, canvas_rect.center().y + 22.0);
+        let max_avail_w = canvas_rect.width() - 80.0;
+        let max_avail_h = canvas_rect.height() - 120.0;
+        let scale = (max_avail_w / target.rect.width).min(max_avail_h / target.rect.height).min(1.0);
+
+        let disp_w = target.rect.width * scale;
+        let disp_h = target.rect.height * scale;
+        let disp_rect = EguiRect::from_center_size(stage_center, EguiVec2::new(disp_w, disp_h));
+
+        // Outer device mockup shadow & bezel
+        let shadow_rect = disp_rect.expand(12.0);
+        painter.rect_filled(shadow_rect, 52.0 * scale, Color32::from_rgb(24, 24, 28));
+        painter.rect_stroke(shadow_rect, 52.0 * scale, EguiStroke::new(3.0 * scale, Color32::from_rgb(60, 60, 70)), egui::StrokeKind::Outside);
+
+        // Draw screen content
+        let mut sim_state = state.clone();
+        sim_state.zoom = scale;
+        sim_state.pan.x = (disp_rect.min.x - canvas_rect.min.x) / scale - target.rect.x;
+        sim_state.pan.y = (disp_rect.min.y - canvas_rect.min.y) / scale - target.rect.y;
+
+        draw_node(&painter, target, &sim_state, canvas_rect, Vec2::ZERO);
+
+        // Inner bezel stroke
+        painter.rect_stroke(disp_rect, target.corner_radius.top_left * scale, EguiStroke::new(1.0, Color32::from_rgba_premultiplied(0, 0, 0, 60)), egui::StrokeKind::Inside);
+    } else {
+        painter.text(
+            canvas_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "No artboards to present. Press 'F' to add an iPhone or Desktop frame.",
+            egui::FontId::proportional(14.0),
+            Color32::from_rgb(150, 150, 160),
+        );
     }
 }
 
