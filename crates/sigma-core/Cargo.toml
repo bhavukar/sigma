@@ -1,7 +1,10 @@
 [package]
 name = "sigma-core"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Core engine for Sigma (document model, scene graph, auto-layout, math)"
 
 [dependencies]
