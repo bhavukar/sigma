@@ -15,7 +15,15 @@ pub fn render_context_menu(
         None => return,
     };
 
-    let screen_rect = ctx.input(|i| i.viewport_rect());
+    let (screen_rect, clicked, ptr_pos, escape_pressed) = ctx.input(|i| {
+        (
+            i.viewport_rect(),
+            i.pointer.primary_clicked() || i.pointer.secondary_clicked(),
+            i.pointer.hover_pos(),
+            i.key_pressed(egui::Key::Escape),
+        )
+    });
+
     let menu_width = 240.0;
     // Estimate menu height depending on whether selection exists
     let has_selection = !state.selected_ids.is_empty();
@@ -26,21 +34,17 @@ pub fn render_context_menu(
     let clamped_y = (menu_pos.y).min(screen_rect.max.y - estimated_height - 10.0).max(screen_rect.min.y + 10.0);
     let target_pos = Pos2::new(clamped_x, clamped_y);
 
-    let mut close_menu = false;
+    let mut close_menu = escape_pressed;
     let mut action_taken = false;
 
     // Check click outside to dismiss
-    if ctx.input(|i| i.pointer.primary_clicked() || i.pointer.secondary_clicked()) {
-        if let Some(ptr_pos) = ctx.input(|i| i.pointer.hover_pos()) {
+    if clicked {
+        if let Some(pos) = ptr_pos {
             let rough_rect = EguiRect::from_min_size(target_pos, EguiVec2::new(menu_width, estimated_height));
-            if !rough_rect.contains(ptr_pos) {
+            if !rough_rect.contains(pos) {
                 close_menu = true;
             }
         }
-    }
-
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        close_menu = true;
     }
 
     egui::Area::new(egui::Id::new("sigma_context_menu"))

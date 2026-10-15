@@ -468,10 +468,8 @@ impl SigmaApp {
                 self.canvas_state.show_shortcuts_modal = !self.canvas_state.show_shortcuts_modal;
             }
 
-            let mouse_or_center = ctx
-                .input(|i| i.pointer.hover_pos())
-                .unwrap_or_else(|| ctx.input(|i| i.viewport_rect().center()));
-            let vp = ctx.input(|i| i.viewport_rect());
+            let vp = i.viewport_rect();
+            let mouse_or_center = i.pointer.hover_pos().unwrap_or_else(|| vp.center());
 
             // Auto Layout (Shift+A)
             if i.modifiers.shift && i.key_pressed(Key::A) && !i.modifiers.command && !i.modifiers.ctrl {
@@ -525,7 +523,7 @@ impl SigmaApp {
 
             // Fit to Screen (Shift+1)
             if i.modifiers.shift && i.key_pressed(Key::Num1) {
-                self.canvas_state.fit_to_screen(&self.doc, ctx.input(|i| i.viewport_rect()));
+                self.canvas_state.fit_to_screen(&self.doc, vp);
             }
 
             // Toggle Presentation Mode (Alt+P)

@@ -878,7 +878,7 @@ fn render_distance_guides(
     if state.selected_ids.is_empty() {
         return;
     }
-    let is_alt = ui.input(|i| i.modifiers.alt);
+    let (is_alt, mouse_pos) = ui.input(|i| (i.modifiers.alt, i.pointer.hover_pos().unwrap_or(canvas_rect.center())));
     if !is_alt && state.drag_start_pos.is_none() {
         return;
     }
@@ -887,7 +887,6 @@ fn render_distance_guides(
         return;
     };
 
-    let mouse_pos = ui.input(|i| i.pointer.hover_pos()).unwrap_or(canvas_rect.center());
     let mouse_world = state.screen_to_world(mouse_pos, canvas_rect);
 
     let hovered_node = doc.hit_test(mouse_world).and_then(|id| {
