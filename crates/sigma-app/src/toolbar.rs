@@ -11,9 +11,25 @@ pub fn render_toolbar(
     network: &NetworkManager,
 ) {
     ui.horizontal(|ui| {
-        ui.add_space(4.0);
+        ui.add_space(6.0);
 
-        // Segmented Tools Dock (Figma Pro Style)
+        // 1. Sigma Brand Logo Lockup
+        crate::logo::render_brand_lockup(ui, 24.0);
+
+        ui.add_space(6.0);
+        ui.label(RichText::new("›").size(13.0).color(Color32::from_rgb(100, 100, 115)));
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(&doc.name)
+                .size(12.5)
+                .color(Color32::from_rgb(200, 200, 210)),
+        );
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(8.0);
+
+        // 2. Segmented Tools Dock (Figma Pro Style)
         let tools = [
             (ActiveTool::Select, "↖", "Move (V)"),
             (ActiveTool::Frame, "⊞", "Frame / Artboard (F)"),
@@ -28,10 +44,10 @@ pub fn render_toolbar(
         ];
 
         egui::Frame::new()
-            .fill(Color32::from_rgb(24, 24, 28))
-            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(45, 45, 52)))
-            .corner_radius(egui::CornerRadius::same(6))
-            .inner_margin(egui::Margin::symmetric(2, 2))
+            .fill(Color32::from_rgb(22, 23, 28))
+            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(44, 46, 56)))
+            .corner_radius(egui::CornerRadius::same(7))
+            .inner_margin(egui::Margin::symmetric(3, 3))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     for (tool, icon, tip) in tools {
@@ -52,9 +68,9 @@ pub fn render_toolbar(
                 });
             });
 
-        ui.add_space(6.0);
+        ui.add_space(8.0);
         ui.separator();
-        ui.add_space(6.0);
+        ui.add_space(8.0);
 
         // Frame Presets Quick Add
         egui::ComboBox::from_id_salt("frame_presets_combo")
@@ -284,6 +300,20 @@ pub fn render_toolbar(
                 .clicked()
             {
                 state.show_debugger = !state.show_debugger;
+            }
+
+            // Keyboard Shortcuts Modal Toggle
+            let sc_btn = egui::Button::new(
+                RichText::new("⌨ Shortcuts")
+                    .size(11.0)
+                    .color(Color32::from_rgb(180, 180, 195)),
+            );
+            if ui
+                .add(sc_btn)
+                .on_hover_text("Keyboard Shortcuts & Hotkeys Cheat Sheet (?)")
+                .clicked()
+            {
+                state.show_shortcuts_modal = true;
             }
 
             ui.separator();

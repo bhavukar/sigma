@@ -68,6 +68,11 @@ pub struct CanvasState {
     pub is_presenting: bool,
     pub presentation_device: String,
     pub show_grid: bool,
+    // Context Menu & Clipboard & Shortcuts Modal
+    pub context_menu_pos: Option<Pos2>,
+    pub clipboard: Vec<Node>,
+    pub show_shortcuts_modal: bool,
+    pub shortcuts_search: String,
 }
 
 impl Default for CanvasState {
@@ -109,6 +114,10 @@ impl Default for CanvasState {
             is_presenting: false,
             presentation_device: "iPhone 16 Pro".to_string(),
             show_grid: true,
+            context_menu_pos: None,
+            clipboard: Vec::new(),
+            show_shortcuts_modal: false,
+            shortcuts_search: String::new(),
         }
     }
 }

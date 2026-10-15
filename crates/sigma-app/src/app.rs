@@ -130,6 +130,18 @@ impl eframe::App for SigmaApp {
         // 7. Better Auth Modal Dialog
         crate::auth::render_auth_modal(&ctx, &mut self.canvas_state, &mut self.network);
 
+        // 8. Right-click Context Menu
+        crate::context_menu::render_context_menu(
+            &ctx,
+            &mut self.doc,
+            &mut self.canvas_state,
+            &mut self.history,
+            &self.network,
+        );
+
+        // 9. Keyboard Shortcuts Cheat Sheet Modal
+        crate::shortcuts_modal::render_shortcuts_modal(&ctx, &mut self.canvas_state);
+
         // Request regular repaints when peers are active
         if !self.canvas_state.remote_peers.is_empty() {
             ctx.request_repaint();
@@ -379,6 +391,112 @@ impl SigmaApp {
                     }
                 }
             }
+
+            // Copy (Cmd+C / Ctrl+C)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::C) {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.canvas_state.clipboard = self.doc.clone_nodes_for_clipboard(&self.canvas_state.selected_ids);
+                }
+            }
+
+            // Paste (Cmd+V / Ctrl+V)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::V) {
+                if !self.canvas_state.clipboard.is_empty() {
+                    self.history.push_state(&self.doc);
+                    let paste_pos = if self.mouse_pos_world != Vec2::ZERO {
+                        Some(self.mouse_pos_world)
+                    } else {
+                        None
+                    };
+                    let new_ids = self.doc.paste_nodes(&self.canvas_state.clipboard, paste_pos);
+                    if !new_ids.is_empty() {
+                        self.canvas_state.selected_ids = new_ids;
+                        self.network.send_selection(&self.canvas_state.selected_ids);
+                        self.network.send_doc_update(&self.doc);
+                    }
+                }
+            }
+
+            // Cut (Cmd+X / Ctrl+X)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::X) {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.canvas_state.clipboard = self.doc.clone_nodes_for_clipboard(&self.canvas_state.selected_ids);
+                    self.history.push_state(&self.doc);
+                    for id in self.canvas_state.selected_ids.clone() {
+                        self.doc.remove_node(id);
+                    }
+                    self.canvas_state.selected_ids.clear();
+                    self.network.send_selection(&[]);
+                    self.network.send_doc_update(&self.doc);
+                }
+            }
+
+            // Frame Selection (Cmd+Alt+G)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.modifiers.alt && i.key_pressed(Key::G) {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.history.push_state(&self.doc);
+                    if let Some(fid) = self.doc.frame_selection(&self.canvas_state.selected_ids) {
+                        self.canvas_state.selected_ids = vec![fid];
+                        self.network.send_selection(&self.canvas_state.selected_ids);
+                        self.network.send_doc_update(&self.doc);
+                    }
+                }
+            }
+
+            // Lock / Unlock Selection (Cmd+Shift+L)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.modifiers.shift && i.key_pressed(Key::L) {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.history.push_state(&self.doc);
+                    self.doc.toggle_lock_selection(&self.canvas_state.selected_ids);
+                    self.network.send_doc_update(&self.doc);
+                }
+            }
+
+            // Hide / Show Selection (Cmd+Shift+H)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.modifiers.shift && i.key_pressed(Key::H) {
+                if !self.canvas_state.selected_ids.is_empty() {
+                    self.history.push_state(&self.doc);
+                    self.doc.toggle_vis_selection(&self.canvas_state.selected_ids);
+                    self.network.send_doc_update(&self.doc);
+                }
+            }
+
+            // Keyboard Shortcuts Cheat Sheet (Cmd+/ or Shift+Slash "?")
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Slash)
+                || (i.modifiers.shift && i.key_pressed(Key::Slash))
+            {
+                self.canvas_state.show_shortcuts_modal = !self.canvas_state.show_shortcuts_modal;
+            }
+
+            // Zoom 100% (Cmd+0)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Num0) {
+                self.canvas_state.zoom = 1.0;
+            }
+
+            // Zoom In (Cmd+= / Cmd++)
+            if (i.modifiers.command || i.modifiers.ctrl) && (i.key_pressed(Key::Equals) || i.key_pressed(Key::Plus)) {
+                self.canvas_state.zoom = (self.canvas_state.zoom * 1.2).min(32.0);
+            }
+
+            // Zoom Out (Cmd+-)
+            if (i.modifiers.command || i.modifiers.ctrl) && i.key_pressed(Key::Minus) {
+                self.canvas_state.zoom = (self.canvas_state.zoom / 1.2).max(0.05);
+            }
+
+            // Fit to Screen (Shift+1)
+            if i.modifiers.shift && i.key_pressed(Key::Num1) {
+                self.canvas_state.fit_to_screen(&self.doc, ctx.input(|i| i.viewport_rect()));
+            }
+
+            // Toggle Presentation Mode (Alt+P)
+            if i.modifiers.alt && i.key_pressed(Key::P) {
+                self.canvas_state.is_presenting = !self.canvas_state.is_presenting;
+            }
+
+            // Toggle Dot Grid (G)
+            if i.key_pressed(Key::G) && !i.modifiers.command && !i.modifiers.ctrl {
+                self.canvas_state.show_grid = !self.canvas_state.show_grid;
+            }
         });
     }
 
@@ -397,6 +515,17 @@ impl SigmaApp {
         if (world_mouse - self.last_broadcast_pos).length() > 2.0 {
             self.network.send_cursor(world_mouse.x, world_mouse.y);
             self.last_broadcast_pos = world_mouse;
+        }
+
+        // 0. Right Click Context Menu Detection
+        if response.secondary_clicked() {
+            if let Some(hit_id) = self.doc.hit_test(world_mouse) {
+                if !self.canvas_state.selected_ids.contains(&hit_id) {
+                    self.canvas_state.selected_ids = vec![hit_id];
+                    self.network.send_selection(&self.canvas_state.selected_ids);
+                }
+            }
+            self.canvas_state.context_menu_pos = Some(mouse_pos);
         }
 
         // 1. Mouse Wheel Zoom & Pan

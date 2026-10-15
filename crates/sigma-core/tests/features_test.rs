@@ -326,3 +326,88 @@ fn test_production_ui_kits() {
     assert_eq!(doc.spatial_index.len(), 6);
 }
 
+#[test]
+fn test_frame_selection() {
+    let mut doc = Document::new("Frame Selection Test");
+    let id1 = doc.add_node(Node::new_rectangle(0, "Box 1", Rect::new(50.0, 60.0, 40.0, 40.0), Color::WHITE));
+    let id2 = doc.add_node(Node::new_rectangle(0, "Box 2", Rect::new(120.0, 150.0, 60.0, 50.0), Color::WHITE));
+
+    let frame_id = doc.frame_selection(&[id1, id2]).expect("Frame selection should create a frame");
+    assert_eq!(doc.nodes.len(), 1);
+
+    let frame = doc.find_node(frame_id).unwrap();
+    assert_eq!(frame.kind, NodeKind::Frame);
+    assert_eq!(frame.children.len(), 2);
+    // Bounding box: x: 50.0, y: 60.0, max_x: 180.0 (120+60), max_y: 200.0 (150+50) -> w: 130.0, h: 140.0
+    assert_eq!(frame.rect.x, 50.0);
+    assert_eq!(frame.rect.y, 60.0);
+    assert_eq!(frame.rect.width, 130.0);
+    assert_eq!(frame.rect.height, 140.0);
+
+    // Children coordinates should be relative to frame origin
+    let child1 = &frame.children[0];
+    let child2 = &frame.children[1];
+    assert_eq!(child1.rect.x, 0.0); // 50 - 50
+    assert_eq!(child1.rect.y, 0.0); // 60 - 60
+    assert_eq!(child2.rect.x, 70.0); // 120 - 50
+    assert_eq!(child2.rect.y, 90.0); // 150 - 60
+}
+
+#[test]
+fn test_toggle_lock_and_vis_selection() {
+    let mut doc = Document::new("Lock and Vis Test");
+    let id1 = doc.add_node(Node::new_rectangle(0, "A", Rect::new(10.0, 10.0, 20.0, 20.0), Color::WHITE));
+    let id2 = doc.add_node(Node::new_rectangle(0, "B", Rect::new(40.0, 10.0, 20.0, 20.0), Color::WHITE));
+
+    // Initially unlocked and visible
+    assert!(!doc.find_node(id1).unwrap().locked);
+    assert!(doc.find_node(id1).unwrap().visible);
+
+    // Toggle lock
+    let any_locked = doc.toggle_lock_selection(&[id1, id2]);
+    assert!(any_locked);
+    assert!(doc.find_node(id1).unwrap().locked);
+    assert!(doc.find_node(id2).unwrap().locked);
+
+    let any_locked_again = doc.toggle_lock_selection(&[id1, id2]);
+    assert!(!any_locked_again);
+    assert!(!doc.find_node(id1).unwrap().locked);
+
+    // Toggle visibility
+    let any_vis = doc.toggle_vis_selection(&[id1]);
+    assert!(!any_vis); // id1 is now invisible
+    assert!(!doc.find_node(id1).unwrap().visible);
+    // Spatial index should not hit invisible nodes
+    let hits = doc.hit_test(Vec2::new(15.0, 15.0));
+    assert_ne!(hits, Some(id1));
+}
+
+#[test]
+fn test_clipboard_copy_and_paste() {
+    let mut doc = Document::new("Clipboard Test");
+    let id1 = doc.add_node(Node::new_rectangle(0, "Original", Rect::new(100.0, 100.0, 50.0, 50.0), Color::WHITE));
+
+    let clipboard = doc.clone_nodes_for_clipboard(&[id1]);
+    assert_eq!(clipboard.len(), 1);
+    assert_eq!(clipboard[0].name, "Original");
+
+    // Paste with explicit target position
+    let pasted_ids = doc.paste_nodes(&clipboard, Some(Vec2::new(300.0, 400.0)));
+    assert_eq!(pasted_ids.len(), 1);
+    let pasted_id = pasted_ids[0];
+    assert_ne!(pasted_id, id1);
+
+    let pasted_node = doc.find_node(pasted_id).unwrap();
+    assert_eq!(pasted_node.rect.x, 300.0);
+    assert_eq!(pasted_node.rect.y, 400.0);
+    assert_eq!(pasted_node.rect.width, 50.0);
+    assert_eq!(pasted_node.rect.height, 50.0);
+
+    // Paste with default offset (20, 20)
+    let pasted_offset = doc.paste_nodes(&clipboard, None);
+    assert_eq!(pasted_offset.len(), 1);
+    let offset_node = doc.find_node(pasted_offset[0]).unwrap();
+    assert_eq!(offset_node.rect.x, 120.0);
+    assert_eq!(offset_node.rect.y, 120.0);
+}
+

@@ -3,8 +3,11 @@
 mod app;
 mod auth;
 mod canvas;
+mod context_menu;
 mod inspector;
+mod logo;
 mod network;
+mod shortcuts_modal;
 mod sidebar;
 mod toolbar;
 

@@ -1,6 +1,6 @@
 use crate::canvas::CanvasState;
 use crate::network::NetworkManager;
-use egui::{Color32, RichText, ScrollArea, Ui, Vec2 as EguiVec2};
+use egui::{Color32, RichText, ScrollArea, Ui};
 use sigma_core::{Document, Node, NodeId, NodeKind};
 
 pub fn render_sidebar(
@@ -14,30 +14,7 @@ pub fn render_sidebar(
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             ui.add_space(8.0);
-            let (logo_rect, _) = ui.allocate_exact_size(EguiVec2::splat(22.0), egui::Sense::hover());
-            let painter = ui.painter_at(logo_rect);
-            painter.rect_filled(logo_rect, 6.0, Color32::from_rgb(10, 132, 255));
-            painter.text(
-                logo_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "Σ",
-                egui::FontId::proportional(15.0),
-                Color32::WHITE,
-            );
-
-            ui.add_space(6.0);
-            ui.label(
-                RichText::new("Sigma")
-                    .size(15.0)
-                    .strong()
-                    .color(Color32::WHITE),
-            );
-            ui.label(
-                RichText::new("PRO")
-                    .size(9.0)
-                    .strong()
-                    .color(Color32::from_rgb(255, 180, 0)),
-            );
+            crate::logo::render_brand_lockup(ui, 22.0);
         });
 
         ui.add_space(8.0);

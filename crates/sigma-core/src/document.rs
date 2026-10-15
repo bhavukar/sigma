@@ -514,6 +514,106 @@ impl Document {
         unpacked_ids
     }
 
+    pub fn frame_selection(&mut self, ids: &[NodeId]) -> Option<NodeId> {
+        if ids.is_empty() {
+            return None;
+        }
+        let bbox = self.selection_bounding_box(ids)?;
+        let mut children = Vec::new();
+
+        self.nodes.retain(|n| {
+            if ids.contains(&n.id) {
+                let mut child = n.clone();
+                child.rect.x -= bbox.x;
+                child.rect.y -= bbox.y;
+                children.push(child);
+                false
+            } else {
+                true
+            }
+        });
+
+        if children.is_empty() {
+            return None;
+        }
+
+        let frame_id = self.alloc_id();
+        let mut frame = Node::new_frame(frame_id, &format!("Frame {}", frame_id), bbox);
+        frame.fills = vec![crate::style::Fill::Solid {
+            color: Color::WHITE,
+            opacity: 1.0,
+        }];
+        frame.corner_radius = crate::style::CornerRadius::uniform(8.0);
+        frame.children = children;
+
+        self.nodes.push(frame);
+        self.rebuild_spatial_index();
+        Some(frame_id)
+    }
+
+    pub fn toggle_lock_selection(&mut self, ids: &[NodeId]) -> bool {
+        let mut any_locked = false;
+        for &id in ids {
+            if let Some(node) = self.find_node_mut(id) {
+                node.locked = !node.locked;
+                any_locked |= node.locked;
+            }
+        }
+        any_locked
+    }
+
+    pub fn toggle_vis_selection(&mut self, ids: &[NodeId]) -> bool {
+        let mut any_visible = false;
+        for &id in ids {
+            if let Some(node) = self.find_node_mut(id) {
+                node.visible = !node.visible;
+                any_visible |= node.visible;
+            }
+        }
+        self.rebuild_spatial_index();
+        any_visible
+    }
+
+    pub fn clone_nodes_for_clipboard(&self, ids: &[NodeId]) -> Vec<Node> {
+        ids.iter().filter_map(|&id| self.find_node(id).cloned()).collect()
+    }
+
+    pub fn paste_nodes(&mut self, nodes: &[Node], target_pos: Option<Vec2>) -> Vec<NodeId> {
+        if nodes.is_empty() {
+            return Vec::new();
+        }
+
+        let offset = if let Some(target) = target_pos {
+            let min_x = nodes.iter().map(|n| n.rect.x).fold(f32::INFINITY, f32::min);
+            let min_y = nodes.iter().map(|n| n.rect.y).fold(f32::INFINITY, f32::min);
+            Vec2::new(target.x - min_x, target.y - min_y)
+        } else {
+            Vec2::new(20.0, 20.0)
+        };
+
+        let mut new_ids = Vec::new();
+        for node in nodes {
+            let mut cloned = node.clone();
+            self.reassign_ids_recursively(&mut cloned);
+            cloned.rect.x += offset.x;
+            cloned.rect.y += offset.y;
+            new_ids.push(cloned.id);
+            if cloned.visible {
+                self.spatial_index.insert(cloned.id, cloned.rect);
+            }
+            self.nodes.push(cloned);
+        }
+        self.rebuild_spatial_index();
+        new_ids
+    }
+
+    fn reassign_ids_recursively(&mut self, node: &mut Node) {
+        node.id = self.alloc_id();
+        for child in &mut node.children {
+            self.reassign_ids_recursively(child);
+        }
+    }
+
     pub fn get_next_frame_position(&self, default_center: Vec2, width: f32) -> Vec2 {
         let root_frames: Vec<&Node> = self.nodes.iter().filter(|n| n.kind == NodeKind::Frame).collect();
         if root_frames.is_empty() {
